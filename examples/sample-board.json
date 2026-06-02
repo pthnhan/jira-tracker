@@ -1,0 +1,151 @@
+{
+  "project": {
+    "key": "PAY",
+    "name": "Payments Service",
+    "repo": "github.com/acme/payments",
+    "created": "2026-06-02T10:43:43+00:00",
+    "updated": "2026-06-02T10:43:43+00:00",
+    "counter": 7
+  },
+  "types": [
+    "Epic",
+    "Story",
+    "Task",
+    "Bug",
+    "Sub-task"
+  ],
+  "statuses": [
+    "To Do",
+    "In Progress",
+    "In Review",
+    "Done",
+    "Cancelled"
+  ],
+  "priorities": [
+    "Highest",
+    "High",
+    "Medium",
+    "Low",
+    "Lowest"
+  ],
+  "issues": [
+    {
+      "key": "PAY-1",
+      "type": "Epic",
+      "title": "Core payment pipeline",
+      "description": "Synchronous charge/refund flow already shipped.",
+      "status": "Done",
+      "priority": "High",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": []
+    },
+    {
+      "key": "PAY-2",
+      "type": "Story",
+      "title": "Charge a card",
+      "description": "",
+      "status": "Done",
+      "priority": "High",
+      "parent": "PAY-1",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": []
+    },
+    {
+      "key": "PAY-3",
+      "type": "Story",
+      "title": "Refund a charge",
+      "description": "",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "PAY-1",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": []
+    },
+    {
+      "key": "PAY-4",
+      "type": "Task",
+      "title": "Stripe client wrapper",
+      "description": "",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "PAY-1",
+      "labels": [
+        "backend"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": []
+    },
+    {
+      "key": "PAY-5",
+      "type": "Epic",
+      "title": "Migrate to async processing",
+      "description": "Move the sync pipeline to a queue-based model.",
+      "status": "To Do",
+      "priority": "High",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": []
+    },
+    {
+      "key": "PAY-6",
+      "type": "Task",
+      "title": "Add Redis queue client",
+      "description": "Found as TODO in worker/main.py.",
+      "status": "In Progress",
+      "priority": "Medium",
+      "parent": "PAY-5",
+      "labels": [
+        "backend",
+        "infra"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-02T10:43:43+00:00",
+          "body": "Drafting RedisQueue in infra/queue.py."
+        }
+      ]
+    },
+    {
+      "key": "PAY-7",
+      "type": "Bug",
+      "title": "Webhook retries fire twice",
+      "description": "Duplicate delivery on 5xx; idempotency key not honored on retry. (FIXME in webhooks/handler.py)",
+      "status": "To Do",
+      "priority": "Highest",
+      "parent": null,
+      "labels": [],
+      "components": [
+        "webhooks"
+      ],
+      "assignee": "",
+      "created": "2026-06-02T10:43:43+00:00",
+      "updated": "2026-06-02T10:43:43+00:00",
+      "comments": []
+    }
+  ]
+}
