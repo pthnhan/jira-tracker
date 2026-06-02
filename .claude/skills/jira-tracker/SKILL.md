@@ -61,28 +61,39 @@ Trigger: `/init`, **or** any cue that you're beginning work from a repository �
 "read this repo", or simply being pointed at a codebase to work in. You do not
 need an explicit `/init`.
 
+Repo-analysis prompts also count here for tracker purposes: "summarize this
+repo", "what's done?", "what are the potential issues?", "review this project",
+or similar requests to inspect the codebase.
+
 ### Step 0 - Is there already a board?
 
 Check for `.jira/board.json` or `.jira/board.html`.
 
 - **If either exists, the repo is already tracked.** Load it, summarize with
   `status` and `next`, and continue from it (this is Workflow 2). Do **not**
-  modify or regenerate the board unless the user asks you to — start *with* the
-  existing board as-is.
+  modify or regenerate the board silently — start *with* the existing board
+  as-is. If the user asked for a repo scan, summary, review, "what's done", or
+  potential issues, compare the scan against the board and end with a tracker
+  proposal: either list the new/updated tickets you recommend, or say no tracker
+  changes seem needed. Apply proposed changes only after the user approves them.
 - If only `board.html` exists but `board.json` is missing, tell the user the
   source-of-truth JSON is absent and ask whether to rebuild it before changing
   anything.
 
 ### Step 1 - Ask before creating a board
 
-If there is no board and the request was an *implicit* start-work cue (not an
-explicit "create the board" / `/init`), **ask first**:
+If there is no board and the request was an *implicit* start-work or
+repo-analysis cue (not an explicit "create the board" / `/init`), **ask first**:
 
 > "This repo isn't tracked yet. Do you want me to create a Jira-style board for
 > it?"
 
 Wait for a yes. If the user explicitly asked to set up tracking or ran `/init`,
 skip the question and go straight to proposing the seed plan.
+
+For summary/review prompts, do not stop at a plain list of findings. After the
+summary, always include the board-creation offer above so the user can turn the
+analysis into tracked Done and To Do items.
 
 ### Step 2 - Create and seed after the user agrees
 
@@ -112,10 +123,12 @@ Keep it proportionate — a handful of well-chosen issues beats fifty noisy ones
 ### Reviewing an already-tracked repo on request
 
 When the user asks you to review the project / refresh the board ("review the
-repo and update the tickets"), do a scan pass: look for new problems, completed
-work that's still marked open, or drift between the board and the code. Then
-**propose** the new or updated tickets (new Bugs/Tasks, status corrections) and
-apply them only after the user reviews them. Never silently rewrite the board.
+repo and update the tickets", "summarize what's done", "what are the potential
+issues?"), do a scan pass: look for new problems, completed work that's still
+marked open, or drift between the board and the code. Then **propose** the new
+or updated tickets (new Bugs/Tasks, status corrections), or explicitly say that
+no tracker changes seem needed. Apply changes only after the user reviews them.
+Never silently rewrite the board.
 
 ---
 
