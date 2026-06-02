@@ -54,7 +54,31 @@ When used, the board itself lives in the repo root under:
 agent won't silently rewrite the board. You can grant a standing "just keep it
 updated without asking" for a session if you prefer.
 
-## Using the starter
+## Install globally
+
+Use a global install when you want the skill available to your agent in every
+repo without copying `.claude/` or `.codex/` into each project.
+
+From this repository root:
+
+```bash
+# Claude Code
+mkdir -p "$HOME/.claude/skills"
+rm -rf "$HOME/.claude/skills/jira-tracker"
+cp -R .claude/skills/jira-tracker "$HOME/.claude/skills/"
+```
+
+```bash
+# Codex
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+rm -rf "${CODEX_HOME:-$HOME/.codex}/skills/jira-tracker"
+cp -R .codex/skills/jira-tracker "${CODEX_HOME:-$HOME/.codex}/skills/"
+```
+
+After installing, open any repo with your agent and say
+**"set up work tracking for this repo"** or **"continue from the Jira board."**
+
+## Install in a project
 
 1. Copy the agent package you use into your repo, or use this repo as a
    template:
@@ -64,6 +88,24 @@ updated without asking" for a session if you prefer.
 2. Open the target repo with your agent.
 3. Run `/init`, or just say **"set up work tracking for this repo."**
 4. Open `.jira/board.html` in a browser to see the board.
+
+### Update an existing project install
+
+If this repository is checked out at `/path/to/jira-tracker` and your target
+project is `/path/to/my-app`, refresh the local agent package with one command.
+Change the two paths first.
+
+```bash
+# Claude Code
+src=/path/to/jira-tracker dst=/path/to/my-app; mkdir -p "$dst/.claude/skills" && rm -rf "$dst/.claude/skills/jira-tracker" && cp -R "$src/.claude/skills/jira-tracker" "$dst/.claude/skills/"
+```
+
+```bash
+# Codex
+src=/path/to/jira-tracker dst=/path/to/my-app; mkdir -p "$dst/.codex/skills" && rm -rf "$dst/.codex/skills/jira-tracker" && cp -R "$src/.codex/skills/jira-tracker" "$dst/.codex/skills/"
+```
+
+To install or refresh both agents in one project, run both commands.
 
 ## Driving it by hand (optional)
 
