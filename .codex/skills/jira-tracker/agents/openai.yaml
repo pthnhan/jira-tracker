@@ -1,0 +1,7 @@
+interface:
+  display_name: "Jira Tracker"
+  short_description: "Track repo work with local Jira boards"
+  default_prompt: "Use $jira-tracker to set up or resume local work tracking for this repository."
+
+policy:
+  allow_implicit_invocation: true

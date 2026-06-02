@@ -5,10 +5,10 @@ A starting point for new git repositories that gives you (and your AI agent) a
 accounts, no network. Work is stored as a single JSON file and rendered to a
 clean, browsable HTML board.
 
-It's packaged as a **Claude Code Agent Skill** (`.claude/skills/jira-tracker/`)
-so the agent knows, on its own, to check the board at the start of a session,
-create the correctly-typed issue whenever a new problem comes up, and update
-status + leave a comment after finishing anything.
+It's packaged for **Claude Code** (`.claude/skills/jira-tracker/`) and
+**Codex** (`.codex/skills/jira-tracker/`) so either agent can check the board at
+the start of a session, create the correctly-typed issue whenever a new problem
+comes up, and update status + leave a comment after finishing anything.
 
 ## What you get
 
@@ -17,6 +17,11 @@ status + leave a comment after finishing anything.
 ├── SKILL.md                 # the workflow the agent follows
 ├── scripts/jira.py          # the tracker CLI (Python 3 stdlib only)
 └── references/schema.md     # board.json structure
+.codex/skills/jira-tracker/
+├── SKILL.md                 # same workflow, packaged for Codex
+├── agents/openai.yaml       # Codex UI metadata
+├── scripts/jira.py          # same tracker CLI
+└── references/schema.md     # same board.json structure
 examples/sample-board.json   # a filled-in example you can open via the CLI
 ```
 
@@ -51,9 +56,12 @@ updated without asking" for a session if you prefer.
 
 ## Using the starter
 
-1. Copy this `.claude/` folder into your repo (or use this repo as a template),
-   then `git init` if it's new.
-2. Open the repo with Claude Code (or any agent that reads `.claude/skills/`).
+1. Copy the agent package you use into your repo, or use this repo as a
+   template:
+   - Claude Code: copy `.claude/`
+   - Codex: copy `.codex/`
+   - Both agents: copy both directories
+2. Open the target repo with your agent.
 3. Run `/init`, or just say **"set up work tracking for this repo."**
 4. Open `.jira/board.html` in a browser to see the board.
 
@@ -63,6 +71,8 @@ The CLI is plain Python and works without an agent:
 
 ```bash
 jira=".claude/skills/jira-tracker/scripts/jira.py"
+# or, in a Codex-packaged repo:
+# jira=".codex/skills/jira-tracker/scripts/jira.py"
 
 python3 $jira init --name "My App" --key APP --repo "github.com/me/app"
 python3 $jira add --type Epic  --title "User accounts" --priority High
