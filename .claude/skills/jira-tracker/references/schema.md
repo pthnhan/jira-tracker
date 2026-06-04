@@ -47,8 +47,8 @@ The single source of truth. Lives at `.jira/board.json`. Change it only through
 - **parent** — models hierarchy: Stories/Tasks/Bugs point to an Epic; Sub-tasks
   point to a Story or Task. Used by the "By Epic" view in the HTML board.
 - **status / type / priority** — must be values from the arrays at the top of the
-  file. The CLI accepts case-insensitive and unique-prefix input (`prog` →
-  `In Progress`) and normalizes to the canonical value.
+  file. The CLI accepts case-insensitive unique fragments (`prog` →
+  `In Progress`, `review` → `In Review`) and normalizes to the canonical value.
 - **comments** — append-only audit trail. This is where the "what I actually did"
   history lives; keep it specific.
 

@@ -17,6 +17,7 @@ import datetime as _dt
 import html
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -56,17 +57,26 @@ def load(args) -> dict:
     p = board_path(args)
     if not p.exists():
         die(f"no board found at {p}. Run `jira.py init` first.")
-    with open(p, "r", encoding="utf-8") as fh:
-        return json.load(fh)
+    try:
+        with open(p, "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except json.JSONDecodeError as e:
+        die(f"could not parse {p} ({e}) — fix the JSON or restore it from git")
+
+
+def write_atomic(path: Path, text: str):
+    """Write via a temp file + rename so an interrupted write can't corrupt the target."""
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
 
 
 def save(board: dict, args, render: bool = True):
     p = board_path(args)
     p.parent.mkdir(parents=True, exist_ok=True)
     board["project"]["updated"] = now()
-    with open(p, "w", encoding="utf-8") as fh:
-        json.dump(board, fh, indent=2, ensure_ascii=False)
-        fh.write("\n")
+    write_atomic(p, json.dumps(board, indent=2, ensure_ascii=False) + "\n")
     if render:
         out = p.with_name("board.html")
         render_html(board, out)
@@ -88,15 +98,20 @@ def next_key(board: dict) -> str:
 
 
 def fuzzy(value: str, options: list, label: str) -> str:
-    """Match a status/type/priority case-insensitively, allow unique prefixes."""
+    """Match a status/type/priority case-insensitively; allow any unique
+    prefix or fragment ('prog' -> 'In Progress', 'review' -> 'In Review')."""
     if value in options:
         return value
     lowered = {o.lower(): o for o in options}
     if value.lower() in lowered:
         return lowered[value.lower()]
     hits = [o for o in options if o.lower().startswith(value.lower())]
+    if not hits:
+        hits = [o for o in options if value.lower() in o.lower()]
     if len(hits) == 1:
         return hits[0]
+    if hits:
+        die(f"ambiguous {label} '{value}' — matches: {', '.join(hits)}")
     die(f"invalid {label} '{value}'. choose one of: {', '.join(options)}")
 
 
@@ -104,6 +119,19 @@ def split_csv(value):
     if not value:
         return []
     return [v.strip() for v in value.split(",") if v.strip()]
+
+
+def valid_parent(board: dict, issue: dict, parent_key: str) -> str:
+    """Resolve a parent key, refusing self-parenting and ancestry cycles."""
+    parent = find(board, parent_key)["key"]
+    by_key = {i["key"]: i for i in board["issues"]}
+    cur, seen = parent, set()
+    while cur and cur not in seen:
+        if cur == issue["key"]:
+            die(f"parent {parent} would create a cycle with {issue['key']}")
+        seen.add(cur)
+        cur = by_key.get(cur, {}).get("parent")
+    return parent
 
 
 # --------------------------------------------------------------------------- #
@@ -115,6 +143,8 @@ def cmd_init(args):
     if p.exists() and not args.force:
         die(f"board already exists at {p} (use --force to overwrite)")
     key = (args.key or "JT").upper()
+    if not re.fullmatch(r"[A-Z][A-Z0-9]{1,9}", key):
+        die(f"invalid key '{key}' — use 2-10 letters/digits starting with a letter, e.g. PAY")
     board = {
         "project": {
             "key": key,
@@ -198,7 +228,7 @@ def cmd_set(args):
     if args.type is not None:
         issue["type"] = fuzzy(args.type, TYPES, "type"); changed.append("type")
     if args.parent is not None:
-        issue["parent"] = None if args.parent == "" else find(board, args.parent)["key"]; changed.append("parent")
+        issue["parent"] = None if args.parent == "" else valid_parent(board, issue, args.parent); changed.append("parent")
     if args.assignee is not None:
         issue["assignee"] = args.assignee; changed.append("assignee")
     if args.labels is not None:
@@ -233,7 +263,7 @@ def _sort_key(issue):
 def cmd_list(args):
     board = load(args)
     issues = [i for i in board["issues"] if _matches(i, args)]
-    if not args.all:
+    if not args.all and not args.status:  # an explicit --status filter implies --all
         issues = [i for i in issues if i["status"] in OPEN_STATUSES]
     issues.sort(key=_sort_key)
     if not issues:
@@ -304,8 +334,9 @@ def cmd_status(args):
 
 
 def cmd_render(args):
-    board = load(args)
-    out = save(board, args)  # re-saving also re-renders
+    board = load(args)  # read-only: regenerate the view without touching the JSON
+    out = board_path(args).with_name("board.html")
+    render_html(board, out)
     print(f"rendered -> {out}")
 
 
@@ -317,8 +348,7 @@ def render_html(board: dict, out_path: Path):
     data_json = json.dumps(board, ensure_ascii=False).replace("</", "<\\/")
     html_doc = HTML_TEMPLATE.replace("__BOARD_DATA__", data_json)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w", encoding="utf-8") as fh:
-        fh.write(html_doc)
+    write_atomic(out_path, html_doc)
 
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -454,7 +484,7 @@ const PRIORITIES = BOARD.priorities;
 const TYPE_COLOR = {Epic:'var(--epic)',Story:'var(--story)',Task:'var(--task)',Bug:'var(--bug)','Sub-task':'var(--sub)'};
 const STATUS_COLOR = {'To Do':'var(--todo)','In Progress':'var(--prog)','In Review':'var(--review)','Done':'var(--done)','Cancelled':'var(--cancel)'};
 const PRI_COLOR = {Highest:'#f85149',High:'#f0883e',Medium:'#d29922',Low:'#3fb950',Lowest:'#6e7681'};
-const esc = s => (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let view='board', fType='', fPri='';
 
 function visible(){

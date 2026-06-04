@@ -1,0 +1,353 @@
+{
+  "project": {
+    "key": "JT",
+    "name": "Jira Tracker",
+    "repo": "github.com/pthnhan/jira-tracker",
+    "created": "2026-06-04T15:15:49+07:00",
+    "updated": "2026-06-04T15:47:39+07:00",
+    "counter": 17
+  },
+  "types": [
+    "Epic",
+    "Story",
+    "Task",
+    "Bug",
+    "Sub-task"
+  ],
+  "statuses": [
+    "To Do",
+    "In Progress",
+    "In Review",
+    "Done",
+    "Cancelled"
+  ],
+  "priorities": [
+    "Highest",
+    "High",
+    "Medium",
+    "Low",
+    "Lowest"
+  ],
+  "issues": [
+    {
+      "key": "JT-1",
+      "type": "Epic",
+      "title": "Core tracker: CLI + HTML board + skill packaging",
+      "description": "The v1 build: dependency-free Python CLI, standalone HTML board view, agent skill packaging for Claude Code and Codex.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:15:49+07:00",
+      "updated": "2026-06-04T15:15:49+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-2",
+      "type": "Task",
+      "title": "jira.py CLI: init/add/move/comment/set/list/next/show/status/render",
+      "description": "629-line stdlib-only CLI; JSON source of truth with auto re-render via save().",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-1",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:15:49+07:00",
+      "updated": "2026-06-04T15:15:49+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-3",
+      "type": "Task",
+      "title": "Standalone HTML board: kanban, by-epic view, filters, detail modal",
+      "description": "Self-contained board.html with embedded data island; dark theme; no runtime deps beyond optional web fonts.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-1",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:15:49+07:00",
+      "updated": "2026-06-04T15:15:49+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-4",
+      "type": "Task",
+      "title": "Skill packaging for Claude Code (.claude) and Codex (.codex)",
+      "description": "SKILL.md workflows 1-4 + operating principles; Codex variant adds agents/openai.yaml.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-1",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:15:49+07:00",
+      "updated": "2026-06-04T15:15:49+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-5",
+      "type": "Task",
+      "title": "Docs and examples: README, references/schema.md, sample board + rendered HTML",
+      "description": "Install instructions (global/project), hand-driving guide, schema reference, consistent example board.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-1",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:15:50+07:00",
+      "updated": "2026-06-04T15:15:50+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-6",
+      "type": "Epic",
+      "title": "Hardening: fixes from 2026-06-04 code review",
+      "description": "Seven confirmed bugs (each reproduced via CLI) plus test coverage and packaging-sync work.",
+      "status": "In Progress",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:16:42+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:16:42+07:00",
+          "body": "Starting hardening pass: black-box test suite first (RED), then fixes for JT-7..JT-13 (GREEN), then .codex sync + example regeneration."
+        }
+      ]
+    },
+    {
+      "key": "JT-7",
+      "type": "Bug",
+      "title": "fuzzy() rejects documented status shorthands prog/review",
+      "description": "SKILL.md:42 and schema.md:50 promise 'prog'/'review' work, but fuzzy() (jira.py:90-100) is prefix-only and 'in progress' does not start with 'prog'. Fix: unique-substring fallback.",
+      "status": "In Review",
+      "priority": "High",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "Fixed fuzzy() in scripts/jira.py: unique-fragment fallback after prefix matching, so prog/review resolve as documented; ambiguous input now lists its candidates. Tests: test_move_accepts_prog_shorthand / _review_shorthand."
+        }
+      ]
+    },
+    {
+      "key": "JT-8",
+      "type": "Bug",
+      "title": "list --status <closed> returns nothing without --all",
+      "description": "Open-only filter at jira.py:236-237 runs after the explicit status filter and wipes Done/Cancelled results. Fix: explicit --status implies --all.",
+      "status": "In Review",
+      "priority": "Medium",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "cmd_list: an explicit --status filter now implies --all, so closed statuses are findable. Test: test_list_status_done_finds_closed_without_all."
+        }
+      ]
+    },
+    {
+      "key": "JT-9",
+      "type": "Bug",
+      "title": "render mutates board.json (bumps project.updated)",
+      "description": "cmd_render (jira.py:306-309) goes through save(); a read-only view command rewrites the JSON and causes git diffs. Fix: render_html() directly.",
+      "status": "In Review",
+      "priority": "Medium",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "cmd_render now renders the view directly without save(); board.json is untouched. Test: test_render_does_not_modify_board_json."
+        }
+      ]
+    },
+    {
+      "key": "JT-10",
+      "type": "Bug",
+      "title": "init accepts unvalidated --key; esc() misses single quotes",
+      "description": "init --key \"A'B</script>\" is accepted; keys are interpolated into onclick JS strings (jira.py:484) and esc() (:457) does not escape quotes. Fix: validate ^[A-Z][A-Z0-9]{1,9}$ and escape ' in esc().",
+      "status": "In Review",
+      "priority": "Low",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "init validates --key against [A-Z][A-Z0-9]{1,9}; template esc() now escapes single quotes. Tests: test_init_rejects_invalid_key, test_template_esc_covers_single_quote. examples/board.html regenerated with the new template."
+        }
+      ]
+    },
+    {
+      "key": "JT-11",
+      "type": "Bug",
+      "title": "Corrupt board.json shows raw traceback; writes not atomic",
+      "description": "load() (jira.py:55-60) has no JSONDecodeError handling; save() truncate-writes in place. Fix: friendly die() + temp-file os.replace writes.",
+      "status": "In Review",
+      "priority": "Low",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "load() dies cleanly on JSONDecodeError; new write_atomic() (temp file + os.replace) used for both board.json and board.html. Tests: test_corrupt_json_dies_cleanly, test_save_leaves_no_temp_files."
+        }
+      ]
+    },
+    {
+      "key": "JT-12",
+      "type": "Bug",
+      "title": "set --parent allows self-parent and cycles",
+      "description": "set KEY --parent KEY succeeds (jira.py:200-201). Fix: reject self-parent and walk ancestors to detect cycles.",
+      "status": "In Review",
+      "priority": "Low",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "New valid_parent() helper rejects self-parenting and ancestry cycles in cmd_set. Tests: test_set_rejects_self_parent, test_set_rejects_parent_cycle."
+        }
+      ]
+    },
+    {
+      "key": "JT-13",
+      "type": "Bug",
+      "title": "SKILL.md $jira alias pattern breaks under zsh",
+      "description": "jira=\"python3 path\" then $jira cmd relies on word splitting; zsh (macOS default) does not split. Fix SKILL.md to README-style: jira=<path>; python3 $jira cmd.",
+      "status": "In Review",
+      "priority": "Low",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "SKILL.md now stores only the script path in the variable and invokes via: python3 $jira (zsh-safe); schema.md wording corrected from unique-prefix to unique fragments. Test: test_skill_md_has_no_zsh_breaking_alias."
+        }
+      ]
+    },
+    {
+      "key": "JT-14",
+      "type": "Task",
+      "title": "Add black-box CLI test suite (stdlib unittest)",
+      "description": "tests/test_jira.py invoking the CLI via subprocess: regression tests for all commands + the seven review bugs. No third-party deps, matching project ethos.",
+      "status": "In Review",
+      "priority": "High",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:17+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:16:43+07:00",
+          "body": "Writing tests/test_jira.py: subprocess-driven CLI tests; failing tests for each review bug + regression coverage for existing behavior."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "tests/test_jira.py added: 26 black-box subprocess tests (14 regression, 10 review-bug, 2 packaging), stdlib unittest only, no deps. Full suite green. Run: python3 -m unittest discover -s tests."
+        }
+      ]
+    },
+    {
+      "key": "JT-15",
+      "type": "Task",
+      "title": "Sync mechanism + drift check for .claude/.codex/global installs",
+      "description": "Installed ~/.claude copy found stale vs repo (missing 4430ba0). Add make sync/install + a test asserting the two in-repo trees are identical.",
+      "status": "To Do",
+      "priority": "Medium",
+      "parent": "JT-6",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:18+07:00",
+      "updated": "2026-06-04T15:47:39+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T15:47:39+07:00",
+          "body": "Half done: test_claude_and_codex_trees_in_sync now enforces byte-identical shared files across both trees. Remaining: make sync/install convenience targets. Global ~/.claude install refreshed manually on 2026-06-04."
+        }
+      ]
+    },
+    {
+      "key": "JT-16",
+      "type": "Task",
+      "title": "Add LICENSE file",
+      "description": "README positions the repo as a shareable template; no license present.",
+      "status": "To Do",
+      "priority": "Low",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:18+07:00",
+      "updated": "2026-06-04T15:16:18+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-17",
+      "type": "Task",
+      "title": "Board view enhancements: epic progress rollup, surface In Review items",
+      "description": "By-Epic view could show x/y done per epic; next/status could call out In Review items as awaiting human review. Also: no CLI command to edit project fields (e.g. repo URL) after init.",
+      "status": "To Do",
+      "priority": "Low",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T15:16:18+07:00",
+      "updated": "2026-06-04T15:16:18+07:00",
+      "comments": []
+    }
+  ]
+}

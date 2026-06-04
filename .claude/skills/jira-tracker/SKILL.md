@@ -26,14 +26,15 @@ the loaded skill directory.
 ## The CLI
 
 The tracker ships with this skill at `scripts/jira.py` (pure Python 3 standard
-library — no installs). Resolve its path relative to this skill and reuse it.
-For brevity below it is written as `jira`:
+library — no installs). Resolve its path relative to this skill, keep it in a
+variable, and invoke it through `python3` (this form works in bash and zsh
+alike — don't embed `python3` in the variable, since zsh won't word-split it):
 
 ```bash
-jira="python3 <this-skill-dir>/scripts/jira.py"
+jira=<this-skill-dir>/scripts/jira.py     # then: python3 "$jira" <command> ...
 ```
 
-Commands (run `$jira <cmd> --help` for flags):
+Commands (run `python3 "$jira" <cmd> --help` for flags):
 
 | Command | Purpose |
 |---|---|
@@ -177,7 +178,7 @@ and parent it to the right Epic when one exists. Write a one- or two-sentence
 `--desc` so the issue is understandable later. Example:
 
 ```bash
-$jira add --type Bug --title "Webhook retries fire twice" \
+python3 "$jira" add --type Bug --title "Webhook retries fire twice" \
   --priority Highest --parent PAY-1 --components webhooks \
   --desc "Duplicate delivery on 5xx; idempotency key not honored on retry."
 ```
@@ -197,7 +198,7 @@ time:
 1. **Before** you start an issue: move it to In Progress with a short comment on
    your plan.
    ```bash
-   $jira move PAY-2 "in progress" --comment "Drafting the async job schema in jobs/schema.py."
+   python3 "$jira" move PAY-2 prog --comment "Drafting the async job schema in jobs/schema.py."
    ```
 2. **After** you finish:
    - If it's truly complete → `move KEY done --comment "What changed + where."`
