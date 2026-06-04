@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-04T18:38:36+07:00",
+    "updated": "2026-06-04T18:45:06+07:00",
     "counter": 18
   },
   "types": [
@@ -130,19 +130,24 @@
       "type": "Bug",
       "title": "fuzzy() rejects documented status shorthands prog/review",
       "description": "SKILL.md:42 and schema.md:50 promise 'prog'/'review' work, but fuzzy() (jira.py:90-100) is prefix-only and 'in progress' does not start with 'prog'. Fix: unique-substring fallback.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "High",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:05+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "Fixed fuzzy() in scripts/jira.py: unique-fragment fallback after prefix matching, so prog/review resolve as documented; ambiguous input now lists its candidates. Tests: test_move_accepts_prog_shorthand / _review_shorthand."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:05+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -151,19 +156,24 @@
       "type": "Bug",
       "title": "list --status <closed> returns nothing without --all",
       "description": "Open-only filter at jira.py:236-237 runs after the explicit status filter and wipes Done/Cancelled results. Fix: explicit --status implies --all.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:05+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "cmd_list: an explicit --status filter now implies --all, so closed statuses are findable. Test: test_list_status_done_finds_closed_without_all."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:05+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -172,19 +182,24 @@
       "type": "Bug",
       "title": "render mutates board.json (bumps project.updated)",
       "description": "cmd_render (jira.py:306-309) goes through save(); a read-only view command rewrites the JSON and causes git diffs. Fix: render_html() directly.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:05+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "cmd_render now renders the view directly without save(); board.json is untouched. Test: test_render_does_not_modify_board_json."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:05+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -193,19 +208,24 @@
       "type": "Bug",
       "title": "init accepts unvalidated --key; esc() misses single quotes",
       "description": "init --key \"A'B</script>\" is accepted; keys are interpolated into onclick JS strings (jira.py:484) and esc() (:457) does not escape quotes. Fix: validate ^[A-Z][A-Z0-9]{1,9}$ and escape ' in esc().",
-      "status": "In Review",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:05+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "init validates --key against [A-Z][A-Z0-9]{1,9}; template esc() now escapes single quotes. Tests: test_init_rejects_invalid_key, test_template_esc_covers_single_quote. examples/board.html regenerated with the new template."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:05+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -214,19 +234,24 @@
       "type": "Bug",
       "title": "Corrupt board.json shows raw traceback; writes not atomic",
       "description": "load() (jira.py:55-60) has no JSONDecodeError handling; save() truncate-writes in place. Fix: friendly die() + temp-file os.replace writes.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:05+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "load() dies cleanly on JSONDecodeError; new write_atomic() (temp file + os.replace) used for both board.json and board.html. Tests: test_corrupt_json_dies_cleanly, test_save_leaves_no_temp_files."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:05+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -235,19 +260,24 @@
       "type": "Bug",
       "title": "set --parent allows self-parent and cycles",
       "description": "set KEY --parent KEY succeeds (jira.py:200-201). Fix: reject self-parent and walk ancestors to detect cycles.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:05+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "New valid_parent() helper rejects self-parenting and ancestry cycles in cmd_set. Tests: test_set_rejects_self_parent, test_set_rejects_parent_cycle."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:05+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -256,19 +286,24 @@
       "type": "Bug",
       "title": "SKILL.md $jira alias pattern breaks under zsh",
       "description": "jira=\"python3 path\" then $jira cmd relies on word splitting; zsh (macOS default) does not split. Fix SKILL.md to README-style: jira=<path>; python3 $jira cmd.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:06+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "SKILL.md now stores only the script path in the variable and invokes via: python3 $jira (zsh-safe); schema.md wording corrected from unique-prefix to unique fragments. Test: test_skill_md_has_no_zsh_breaking_alias."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:06+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -277,14 +312,14 @@
       "type": "Task",
       "title": "Add black-box CLI test suite (stdlib unittest)",
       "description": "tests/test_jira.py invoking the CLI via subprocess: regression tests for all commands + the seven review bugs. No third-party deps, matching project ethos.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "High",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-04T18:45:06+07:00",
       "comments": [
         {
           "author": "agent",
@@ -295,6 +330,11 @@
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "tests/test_jira.py added: 26 black-box subprocess tests (14 regression, 10 review-bug, 2 packaging), stdlib unittest only, no deps. Full suite green. Run: python3 -m unittest discover -s tests."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:06+07:00",
+          "body": "User-reviewed and committed in bbcc3ef."
         }
       ]
     },
@@ -354,14 +394,14 @@
       "type": "Story",
       "title": "Always-on board reconciliation after every request in tracked repos",
       "description": "In repos with .jira/board.json, every turn ends with an explicit board-reconciliation check once work/thinking completes: update if work state changed, stay silent otherwise. Write model decided 2026-06-04: tiered auto-apply - status moves + comments on actively-worked issues apply immediately and are reported; new issues, retitles, re-priorities still confirmed first.",
-      "status": "In Review",
+      "status": "Done",
       "priority": "High",
       "parent": null,
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T16:17:35+07:00",
-      "updated": "2026-06-04T18:38:36+07:00",
+      "updated": "2026-06-04T18:45:06+07:00",
       "comments": [
         {
           "author": "agent",
@@ -377,6 +417,11 @@
           "author": "agent",
           "at": "2026-06-04T18:38:36+07:00",
           "body": "Shipped: SKILL.md Workflow 5 (end-of-turn reconcile, blocked-write surfacing, red-flags incl. over-track loophole fix), Tiered board writes principle (auto move/comment/render on in-progress or named issues; confirm add/set/seeding/reopens), README five-moments + tiered description + Guarantee layer section, scripts/install-board-hook.py (idempotent, type-guarded, symlink-safe, --global/--settings; 8 tests). Skill-TDD evidence: baseline A dropped a blocked Done-move silently -> GREEN A surfaces exact pending commands; baseline/GREEN B closed the 'too trivial to track' rationalization. Residual noted: one GREEN-B run attempted confirm-tier add directly (caught by permission layer). Suite 34/34; trees byte-identical; global install refreshed."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:45:06+07:00",
+          "body": "User-reviewed and committed in 3324517; hook file commit authorized separately."
         }
       ]
     }

@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f .jira/board.json ] && echo 'Reminder: this repo has a Jira board (.jira/) - reconcile it per jira-tracker Workflow 5 when you finish this request.' || true"
+          }
+        ]
+      }
+    ]
+  }
+}
