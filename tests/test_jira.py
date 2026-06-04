@@ -234,7 +234,8 @@ class TestPackaging(unittest.TestCase):
 
     def test_claude_and_codex_trees_in_sync(self):
         """JT-15: the shared files of both packagings must be byte-identical."""
-        for rel in ("SKILL.md", "scripts/jira.py", "references/schema.md"):
+        for rel in ("SKILL.md", "scripts/jira.py", "scripts/install-board-hook.py",
+                    "references/schema.md"):
             a = (CLAUDE_TREE / rel).read_bytes()
             b = (CODEX_TREE / rel).read_bytes()
             self.assertEqual(a, b, f"{rel} differs between .claude and .codex trees")

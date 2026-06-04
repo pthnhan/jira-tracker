@@ -7,6 +7,9 @@ venv/
 # OS
 .DS_Store
 
+# Local working docs (specs/plans) — kept out of the repo by request
+docs/superpowers/
+
 # NOTE: .jira/ is intentionally NOT ignored — the work board is committed
 # with the repo so it travels with the project and survives fresh clones.
 # If you prefer the rendered HTML not be versioned, uncomment the next line:

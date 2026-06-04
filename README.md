@@ -16,13 +16,16 @@ comes up, and update status + leave a comment after finishing anything.
 .claude/skills/jira-tracker/
 ├── SKILL.md                 # the workflow the agent follows
 ├── scripts/jira.py          # the tracker CLI (Python 3 stdlib only)
+├── scripts/install-board-hook.py  # optional every-turn reminder hook (Claude Code)
 └── references/schema.md     # board.json structure
 .codex/skills/jira-tracker/
 ├── SKILL.md                 # same workflow, packaged for Codex
 ├── agents/openai.yaml       # Codex UI metadata
 ├── scripts/jira.py          # same tracker CLI
+├── scripts/install-board-hook.py  # same file (unused by Codex — no hook support)
 └── references/schema.md     # same board.json structure
 examples/sample-board.json   # a filled-in example you can open via the CLI
+examples/board.html          # the rendered view of that example
 ```
 
 When used, the board itself lives in the repo root under:
@@ -32,7 +35,7 @@ When used, the board itself lives in the repo root under:
 .jira/board.html   # generated view — open it in a browser
 ```
 
-## How it behaves (the four moments)
+## How it behaves (the five moments)
 
 1. **`/init`, or *any* cue that you're starting work** ("let's start on this
    repo", "read this repo", "help me work here") → if the repo isn't tracked yet
@@ -49,10 +52,16 @@ When used, the board itself lives in the repo root under:
    Task / Bug / Sub-task) with priority, description, and a parent link.
 4. **After work** → the issue moves to Done / In Review / Cancelled with a
    comment recording *what actually changed*.
+5. **End of every turn** → in a tracked repo, once the requested work is done
+   the agent runs a board-reconciliation check: if the turn finished,
+   advanced, or discovered work, the board is updated; if not, it stays
+   silent.
 
-**Every board change is proposed for your review before it's applied** — the
-agent won't silently rewrite the board. You can grant a standing "just keep it
-updated without asking" for a session if you prefer.
+**Board writes are tiered.** Routine bookkeeping on the issues being worked —
+status moves, comments, re-rendering — is applied immediately and reported in
+the agent's summary. Structural changes — new issues, retitles, re-priorities,
+seeding — are proposed for your review first. A standing preference ("just
+keep it updated" / "always ask first") overrides either way.
 
 ## Install globally
 
@@ -106,6 +115,28 @@ src=/path/to/jira-tracker dst=/path/to/my-app; mkdir -p "$dst/.codex/skills" && 
 ```
 
 To install or refresh both agents in one project, run both commands.
+
+## Guarantee layer (optional, Claude Code only)
+
+Skill instructions are best-effort — for a guaranteed every-turn reminder,
+install the bundled `UserPromptSubmit` hook. It injects a one-line reconcile
+reminder whenever the current repo has `.jira/board.json`:
+
+```bash
+# project-level (.claude/settings.json in the current repo)
+python3 .claude/skills/jira-tracker/scripts/install-board-hook.py
+
+# or once, globally (~/.claude/settings.json) — a no-op in untracked repos
+python3 .claude/skills/jira-tracker/scripts/install-board-hook.py --global
+```
+
+Re-running is safe (idempotent), and existing settings and hooks are
+preserved. Codex has no hook mechanism and relies on the skill text alone.
+
+For the smoothest auto-applied bookkeeping, also consider allowlisting the
+tracker CLI in your Claude Code permissions (e.g.
+`Bash(python3 *jira-tracker/scripts/jira.py *)` in `.claude/settings.json`),
+so routine `move`/`comment` updates don't hit permission prompts.
 
 ## Driving it by hand (optional)
 

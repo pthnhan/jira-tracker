@@ -101,7 +101,7 @@ analysis into tracked Done and To Do items.
 1. Pick a name and key: name → repo folder or `package.json` / `pyproject.toml`;
    key → 2–4 uppercase letters (e.g. "Payments" → `PAY`).
 2. **Propose the seed plan and let the user review it before writing** (see
-   "Confirm board writes" below): list the issues you intend to create with
+   "Tiered board writes" below): list the issues you intend to create with
    their types and statuses, then apply only after they approve.
 3. Run `init`, then create the issues.
 
@@ -128,8 +128,9 @@ repo and update the tickets", "summarize what's done", "what are the potential
 issues?"), do a scan pass: look for new problems, completed work that's still
 marked open, or drift between the board and the code. Then **propose** the new
 or updated tickets (new Bugs/Tasks, status corrections), or explicitly say that
-no tracker changes seem needed. Apply changes only after the user reviews them.
-Never silently rewrite the board.
+no tracker changes seem needed. Propose new or updated issues and apply them only after the user reviews
+them; status moves and comments on issues you are actively working follow the
+standard tiered rules. Never silently rewrite the board's structure.
 
 ---
 
@@ -190,10 +191,10 @@ parent the pieces under it rather than cramming everything into one issue.
 
 ## Workflow 4 - While working: keep the board honest
 
-This discipline is what makes the board trustworthy. Each step below is a board
-write, so confirm it with the user first per "Confirm board writes" (or proceed
-directly if they've opted into auto-updates for the session). Apply it every
-time:
+This discipline is what makes the board trustworthy. Each step below is a
+board write on the issue you're working — per "Tiered board writes", apply it
+directly and report it in your summary. Confirm first only for confirm-tier
+writes (e.g. creating follow-up issues). Apply it every time:
 
 1. **Before** you start an issue: move it to In Progress with a short comment on
    your plan.
@@ -206,23 +207,66 @@ time:
    - If you abandon it → `move KEY cancelled --comment "why"`.
    Always include a comment that records *what you actually did* and any
    follow-ups (create new issues for follow-ups rather than burying them).
-3. If scope changed, `set` the fields (retitle, re-parent, adjust priority) so
-   the record matches reality.
+3. If scope changed, **propose the `set` change first** (confirm-tier): retitle,
+   re-parent, or adjust priority, then apply after the user agrees so the
+   record matches reality.
 
 A good comment is specific: "Added RedisQueue in infra/queue.py, wired into
 worker, added unit tests" — not "done".
 
 ---
 
+## Workflow 5 - End of every turn: reconcile the board
+
+Trigger: **every turn in a tracked repo** (`.jira/board.json` exists), once
+the requested work or thinking is done — regardless of which workflow (if
+any) the turn followed. Skip only if the user told you to leave the board
+alone.
+
+Run this check silently before closing out your response:
+
+1. Did this turn **finish or advance** any work?
+2. Did it **discover** work nobody asked about (a bug noticed while reading,
+   a TODO spotted, a follow-up implied by an answer)?
+3. Did **scope or priority** change?
+4. Was a **decision** made that belongs in an issue's comment trail?
+
+If none apply, end the turn without mentioning the board — no "nothing to
+update" noise. If any apply, write per "Tiered board writes" below: statuses
+and comments on the issues you touched go in immediately and are reported in
+your summary; new issues, scope changes, or bulk corrections are proposed
+first.
+
+If a write cannot be applied (e.g. a permission prompt is declined or a
+command is blocked), do not silently drop it — say so in your summary and
+list the exact pending command(s) so the user can apply or approve them.
+
+Red flags — if you catch yourself thinking any of these, the check applies:
+
+| Rationalization | Reality |
+|---|---|
+| "Too trivial to track" | Changed files ⇒ recordable; fold into a parent issue's comments, or propose a small Done issue when no parent exists |
+| "The user didn't mention the board" | The board exists — that *is* the mention |
+| "I'll batch updates later" | Later = never across sessions |
+| "This turn was just a question" | Answers that reveal bugs or work still count |
+| "The board write was blocked, moving on" | Surface the pending change at turn end instead of dropping it |
+
+---
+
 ## Operating principles
 
-- **Confirm board writes — ask the user to review before applying them.** Treat
-  the board as something you *propose* changes to, not something you silently
-  rewrite. Before running any mutating command (`init` seeding, `add`, `move`,
-  `comment`, `set`), state the specific change(s) — keys, type, status
-  transition, comment text — and wait for the user's okay. If the user gives a
-  standing "just keep it updated without asking", honor that for the rest of the
-  session; otherwise ask each time. This applies to both new and existing repos.
+- **Tiered board writes.** Two tiers, honoring any standing user preference
+  ("just keep it updated" → apply everything; "always ask first" → confirm
+  everything):
+  - **Auto-apply, then report in your summary:** `move` and `comment` on
+    issues tied to this turn's work, and `render`. "Tied to this turn's
+    work" means issues that are In Progress (whether moved this session or
+    already in progress when the session opened), or issues the user or you
+    explicitly named as the subject of the turn.
+  - **Confirm first:** `init` seeding, `add` (new issues), `set` (retitle,
+    re-priority, re-parent, re-type), reopening Done issues, and bulk
+    corrections. State the specific change(s) — keys, type, status
+    transition, comment text — and wait for the user's okay.
 - **The JSON is the source of truth; the HTML is a view.** Only ever change the
   board through the CLI, which re-renders the HTML for you. If you ever edit
   `board.json` directly, run `render` afterward.
@@ -230,8 +274,11 @@ worker, added unit tests" — not "done".
   so nothing is lost between sessions.
 - **One issue, one status truth.** Move issues as their real state changes; don't
   let In Progress pile up.
-- **Don't over-track.** Trivial, sub-five-minute steps don't each need an issue —
-  fold them into a parent task's comments.
+- **Don't over-track.** Trivial, sub-five-minute steps inside a larger tracked
+  task don't each need an issue — fold them into the parent's comments. But
+  standalone work that changed files and has no parent to fold into gets
+  recorded: propose a small issue (status Done if already finished) instead of
+  leaving the change off the board.
 - The board is committed with the repo (it's just files under `.jira/`), so it
   travels with the project and works the same on a fresh clone.
 

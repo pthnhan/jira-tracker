@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-04T15:47:39+07:00",
-    "counter": 17
+    "updated": "2026-06-04T18:38:36+07:00",
+    "counter": 18
   },
   "types": [
     "Epic",
@@ -348,6 +348,37 @@
       "created": "2026-06-04T15:16:18+07:00",
       "updated": "2026-06-04T15:16:18+07:00",
       "comments": []
+    },
+    {
+      "key": "JT-18",
+      "type": "Story",
+      "title": "Always-on board reconciliation after every request in tracked repos",
+      "description": "In repos with .jira/board.json, every turn ends with an explicit board-reconciliation check once work/thinking completes: update if work state changed, stay silent otherwise. Write model decided 2026-06-04: tiered auto-apply - status moves + comments on actively-worked issues apply immediately and are reported; new issues, retitles, re-priorities still confirmed first.",
+      "status": "In Review",
+      "priority": "High",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-04T16:17:35+07:00",
+      "updated": "2026-06-04T18:38:36+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-04T16:17:35+07:00",
+          "body": "Brainstorming/design in progress; the new fuzzy 'prog' shorthand works, as it happens."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T17:19:48+07:00",
+          "body": "Design approved (tiered auto-apply + approach B: skill policy + optional UserPromptSubmit hook guarantee layer). Spec committed at docs/superpowers/specs/2026-06-04-board-reconciliation-design.md, pending user review."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-04T18:38:36+07:00",
+          "body": "Shipped: SKILL.md Workflow 5 (end-of-turn reconcile, blocked-write surfacing, red-flags incl. over-track loophole fix), Tiered board writes principle (auto move/comment/render on in-progress or named issues; confirm add/set/seeding/reopens), README five-moments + tiered description + Guarantee layer section, scripts/install-board-hook.py (idempotent, type-guarded, symlink-safe, --global/--settings; 8 tests). Skill-TDD evidence: baseline A dropped a blocked Done-move silently -> GREEN A surfaces exact pending commands; baseline/GREEN B closed the 'too trivial to track' rationalization. Residual noted: one GREEN-B run attempted confirm-tier add directly (caught by permission layer). Suite 34/34; trees byte-identical; global install refreshed."
+        }
+      ]
     }
   ]
 }
