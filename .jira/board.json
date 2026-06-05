@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-04T18:45:06+07:00",
-    "counter": 18
+    "updated": "2026-06-06T01:32:21+07:00",
+    "counter": 20
   },
   "types": [
     "Epic",
@@ -386,8 +386,14 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:18+07:00",
-      "updated": "2026-06-04T15:16:18+07:00",
-      "comments": []
+      "updated": "2026-06-06T01:32:21+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T01:32:21+07:00",
+          "body": "Partially delivered by JT-19: the By-Epic x/y-done progress rollup is live in the redesigned board. Remaining scope: next/status calling out In Review items, and a CLI command to edit project fields after init."
+        }
+      ]
     },
     {
       "key": "JT-18",
@@ -424,6 +430,48 @@
           "body": "User-reviewed and committed in 3324517; hook file commit authorized separately."
         }
       ]
+    },
+    {
+      "key": "JT-19",
+      "type": "Story",
+      "title": "Modern board UI: dual theme, epic filter + search, sticky toolbar, issue drawer",
+      "description": "Full HTML_TEMPLATE redesign (user-validated via brainstorm mockups): dark+light themes with FOUC-free bootstrap, localStorage persistence and system-preference default; auto-collapsing sticky toolbar (IntersectionObserver) holding epic/type/priority dropdowns with faceted counts, text search, conditional clear button; Linear-style right-side detail drawer with clickable parent link replacing the centered modal; By-Epic groups now derive from all epics (type filters no longer hide groups) with x/y-done progress bars. Spec: docs/superpowers/specs/2026-06-06-board-ui-redesign-design.md (local).",
+      "status": "Done",
+      "priority": "High",
+      "parent": "JT-1",
+      "labels": [
+        "ui",
+        "board"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-06T01:32:21+07:00",
+      "updated": "2026-06-06T01:32:21+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T01:32:21+07:00",
+          "body": "Shipped on main: 2456dde (template + 4 new TestModernTemplate tests, 38/38 green), 36c4a57 (regenerated .jira/board.html + examples/board.html, byte-stable re-render), c6aa07a (README). Verified: per-task spec reviews, opus code-quality review (0 critical/important), final integration review (ready to ship), headless-Chrome runtime smoke (render() end-to-end, no console errors)."
+        }
+      ]
+    },
+    {
+      "key": "JT-20",
+      "type": "Task",
+      "title": "Board template polish: data-key event delegation, parent-link a11y, color-mix fallbacks",
+      "description": "Minors from the 2026-06-06 board-redesign review: (1) replace inline onclick handlers with delegated listeners on data-key attributes — closes a latent JS-string escaping gap (unreachable via CLI-validated keys) and is less code; (2) drawer parent link is a no-href <a>, not keyboard-focusable; (3) color-mix() tints lack fallbacks on pre-2023 browsers (cosmetic). Pre-existing, not from this change: issues with a status outside BOARD.statuses count in the header total but render in no column.",
+      "status": "To Do",
+      "priority": "Low",
+      "parent": "JT-6",
+      "labels": [
+        "ui",
+        "review-findings"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-06T01:32:21+07:00",
+      "updated": "2026-06-06T01:32:21+07:00",
+      "comments": []
     }
   ]
 }
