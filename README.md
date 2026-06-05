@@ -171,8 +171,12 @@ python3 .claude/skills/jira-tracker/scripts/jira.py --file examples/sample-board
 - **No dependencies.** Python 3.8+ standard library only.
 - **It travels with the repo.** `.jira/` is committed, so the board survives a
   fresh clone and is the same for everyone.
-- The HTML board has a Kanban (by-status) view and a By-Epic hierarchy view,
-  type/priority filters, and a click-through detail panel with the comment trail.
+- The HTML board has a Kanban (by-status) view and a By-Epic hierarchy view;
+  epic/type/priority dropdowns (with live counts), text search, and a
+  clear-filters shortcut live in a toolbar that stays pinned while you scroll.
+  Cards open in a slide-in detail drawer with the description, metadata, and
+  comment trail. Dark and light themes with a 🌙/☀️ toggle (follows your
+  system preference by default).
 
 The board is local and offline; the only network use is loading two web
 fonts in the HTML, which degrades gracefully to system fonts if you're offline.
