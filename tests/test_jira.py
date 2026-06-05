@@ -241,5 +241,38 @@ class TestPackaging(unittest.TestCase):
             self.assertEqual(a, b, f"{rel} differs between .claude and .codex trees")
 
 
+# --------------------------------------------------------------------------- #
+# Board UI redesign — template features (JT board modernization)
+# --------------------------------------------------------------------------- #
+
+class TestModernTemplate(BoardTestCase):
+    """The rendered board.html must contain the redesigned UI's hooks.
+
+    Black-box like the rest of the suite: we assert on the rendered file,
+    not on jira.py internals."""
+
+    def html(self):
+        return (self.dir / ".jira/board.html").read_text()
+
+    def test_template_has_epic_filter(self):
+        self.assertIn('id="fepic"', self.html())
+
+    def test_template_has_search_and_clear_controls(self):
+        html = self.html()
+        self.assertIn('id="fsearch"', html)
+        self.assertIn('id="fclear"', html)
+
+    def test_template_has_theme_toggle_and_bootstrap(self):
+        html = self.html()
+        self.assertIn('id="ftheme"', html)
+        self.assertIn("localStorage.getItem('jt-theme')", html)
+        self.assertIn('data-theme="light"', html)  # light palette block exists
+
+    def test_template_has_drawer_and_sticky_toolbar(self):
+        html = self.html()
+        self.assertIn('class="drawer"', html)
+        self.assertIn("IntersectionObserver", html)
+
+
 if __name__ == "__main__":
     unittest.main()

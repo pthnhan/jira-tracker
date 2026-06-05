@@ -357,100 +357,193 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Work Tracker</title>
+<script>
+(function(){
+  var t=null;
+  try{t=localStorage.getItem('jt-theme');}catch(e){}
+  if(t!=='dark'&&t!=='light'){
+    t=(window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+  }
+  document.documentElement.dataset.theme=t;
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root{
-    --bg:#0d1117; --panel:#161b22; --panel-2:#1c2230; --line:#2a3340;
-    --ink:#e6edf3; --muted:#8b98a9; --faint:#5b6776;
-    --accent:#7ee787; --accent-2:#58a6ff;
-    --todo:#6e7681; --prog:#d29922; --review:#58a6ff; --done:#3fb950; --cancel:#6e4c4c;
-    --epic:#a371f7; --story:#3fb950; --task:#58a6ff; --bug:#f85149; --sub:#8b98a9;
+  :root,:root[data-theme="dark"]{
+    --bg:#0b0d12; --panel:#11141a; --card:#171b23; --line:#232833; --line-2:#2e3645;
+    --ink:#e8eaf0; --muted:#9aa3b5; --faint:#5b6778;
+    --brand-a:#7c6cf0; --brand-b:#4f9cf7;
+    --key-bg:#7ee787; --key-ink:#0b0d12;
+    --scrim:rgba(4,6,10,.45);
+    --shadow:0 1px 3px rgba(0,0,0,.35);
+    --shadow-hover:0 8px 20px rgba(0,0,0,.45);
+    --shadow-drawer:-16px 0 48px rgba(0,0,0,.5);
+    --glow-a:rgba(124,108,240,.10); --glow-b:rgba(79,156,247,.07);
+    --todo:#8b93a7; --prog:#d29922; --review:#58a6ff; --done:#3fb950; --cancel:#a07878;
+    --epic:#a371f7; --story:#3fb950; --task:#58a6ff; --bug:#f85149; --sub:#8b93a7;
+    --pri-highest:#f85149; --pri-high:#f0883e; --pri-medium:#d29922; --pri-low:#3fb950; --pri-lowest:#8b93a7;
     --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
-    --sans:'Sora',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    color-scheme:dark;
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f7f9; --panel:#eceef2; --card:#ffffff; --line:#e3e7ee; --line-2:#d3dae4;
+    --ink:#1f2733; --muted:#5b6678; --faint:#94a0b1;
+    --brand-a:#7c3aed; --brand-b:#2563eb;
+    --key-bg:#16a34a; --key-ink:#ffffff;
+    --scrim:rgba(15,23,42,.28);
+    --shadow:0 1px 2px rgba(16,24,40,.07);
+    --shadow-hover:0 8px 20px rgba(16,24,40,.12);
+    --shadow-drawer:-16px 0 48px rgba(16,24,40,.18);
+    --glow-a:rgba(124,58,237,.05); --glow-b:rgba(37,99,235,.04);
+    --todo:#64748b; --prog:#b45309; --review:#2563eb; --done:#16a34a; --cancel:#9f6b6b;
+    --epic:#7c3aed; --story:#16a34a; --task:#2563eb; --bug:#dc2626; --sub:#64748b;
+    --pri-highest:#dc2626; --pri-high:#ea580c; --pri-medium:#b45309; --pri-low:#16a34a; --pri-lowest:#64748b;
+    color-scheme:light;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-    background-image:radial-gradient(circle at 15% -10%,rgba(163,113,247,.08),transparent 40%),
-      radial-gradient(circle at 90% 0%,rgba(88,166,255,.06),transparent 45%);}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;
+    background-image:radial-gradient(900px 360px at 12% -8%,var(--glow-a),transparent 60%),
+      radial-gradient(900px 360px at 92% -4%,var(--glow-b),transparent 55%);
+    background-repeat:no-repeat}
   a{color:inherit}
-  header{padding:22px 28px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;
-    background:rgba(13,17,23,.85);backdrop-filter:blur(8px);z-index:20}
-  .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-  .brand h1{font-size:19px;margin:0;font-weight:700;letter-spacing:-.01em}
-  .key-tag{font-family:var(--mono);font-size:12px;color:var(--bg);background:var(--accent);
+  button{font-family:inherit}
+
+  /* header (scrolls away) */
+  header{padding:26px 28px 14px}
+  .brand{display:flex;align-items:center;gap:11px;flex-wrap:wrap}
+  .mark{width:26px;height:26px;border-radius:8px;flex:none;
+    background:linear-gradient(135deg,var(--brand-a),var(--brand-b));
+    box-shadow:0 2px 8px color-mix(in srgb,var(--brand-a) 35%,transparent)}
+  .brand h1{font-size:20px;margin:0;font-weight:800;letter-spacing:-.02em}
+  .key-tag{font-family:var(--mono);font-size:11.5px;color:var(--key-ink);background:var(--key-bg);
     padding:2px 8px;border-radius:5px;font-weight:700}
   .repo{font-family:var(--mono);font-size:12px;color:var(--faint)}
   .stats{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
-  .stat{font-family:var(--mono);font-size:12px;color:var(--muted);
-    border:1px solid var(--line);border-radius:999px;padding:4px 12px;display:flex;gap:7px;align-items:center}
+  .stat{font-family:var(--mono);font-size:11.5px;color:var(--muted);background:var(--card);
+    border:1px solid var(--line);border-radius:999px;padding:4px 12px;display:flex;gap:7px;
+    align-items:center;box-shadow:var(--shadow)}
   .stat b{color:var(--ink);font-weight:700}
-  .dot{width:8px;height:8px;border-radius:50%}
-  .controls{display:flex;gap:10px;align-items:center;padding:14px 28px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
-  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
-  .seg button{background:transparent;color:var(--muted);border:0;padding:7px 14px;font-family:var(--mono);
-    font-size:12px;cursor:pointer}
-  .seg button.on{background:var(--panel-2);color:var(--ink)}
-  select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:8px;
-    padding:7px 10px;font-family:var(--mono);font-size:12px}
-  label.flt{font-family:var(--mono);font-size:11px;color:var(--faint);display:flex;flex-direction:column;gap:3px}
-  main{padding:22px 28px 80px}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+  /* sticky toolbar */
+  .toolbar{position:sticky;top:0;z-index:30;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    padding:12px 28px;border-bottom:1px solid transparent;
+    transition:padding .18s ease,box-shadow .18s ease,border-color .18s ease,background .18s ease}
+  .toolbar.stuck{padding:8px 28px;border-bottom-color:var(--line);background:var(--bg);
+    background:color-mix(in srgb,var(--bg) 86%,transparent);
+    -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--shadow)}
+  .toolbar .mini{display:none}
+  .toolbar.stuck .mini{display:inline-block}
+  .seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:9px;
+    overflow:hidden;box-shadow:var(--shadow)}
+  .seg button{background:transparent;color:var(--muted);border:0;padding:7px 14px;
+    font-size:12.5px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+  .seg button.on{background:color-mix(in srgb,var(--brand-b) 16%,transparent);color:var(--ink)}
+  select,input[type="search"]{background:var(--card);color:var(--ink);border:1px solid var(--line);
+    border-radius:9px;padding:7px 10px;font-family:var(--sans);font-size:12.5px;box-shadow:var(--shadow);
+    outline:none;transition:border-color .15s}
+  select:hover,input[type="search"]:hover{border-color:var(--line-2)}
+  select:focus,input[type="search"]:focus{border-color:var(--brand-b)}
+  select{cursor:pointer;max-width:250px}
+  input[type="search"]{width:190px}
+  input[type="search"]::placeholder{color:var(--faint)}
+  .clear-btn{background:transparent;border:0;color:var(--muted);font-size:12px;cursor:pointer;
+    text-decoration:underline dotted;padding:6px 4px}
+  .clear-btn:hover{color:var(--ink)}
+  .theme-btn{margin-left:auto;background:var(--card);border:1px solid var(--line);border-radius:999px;
+    width:34px;height:34px;cursor:pointer;font-size:15px;line-height:1;box-shadow:var(--shadow)}
+  .theme-btn:hover{border-color:var(--line-2)}
+
+  main{padding:16px 28px 80px}
+
   /* board view */
   .cols{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:14px;align-items:start}
   @media(max-width:1100px){.cols{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:640px){.cols{grid-template-columns:1fr}}
-  .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:80px}
-  .col h2{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;
-    margin:0;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;
-    border-bottom:1px solid var(--line);color:var(--muted)}
-  .col h2 .count{background:var(--panel-2);border-radius:999px;padding:1px 9px;color:var(--ink)}
-  .col .stack{padding:10px;display:flex;flex-direction:column;gap:9px}
-  .card{background:var(--panel-2);border:1px solid var(--line);border-left-width:3px;border-radius:9px;
-    padding:11px 12px;cursor:pointer;transition:transform .08s,border-color .15s}
-  .card:hover{transform:translateY(-2px);border-color:var(--faint)}
+  .col{background:var(--panel);border:1px solid var(--line);border-radius:14px;min-height:80px}
+  .col h2{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;
+    margin:0;padding:12px 14px 8px;display:flex;justify-content:space-between;align-items:center;
+    color:var(--muted)}
+  .col h2 .count{background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:1px 9px;color:var(--ink)}
+  .col .stack{padding:10px;padding-top:2px;display:flex;flex-direction:column;gap:9px}
+  .card{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--tc,var(--line-2));
+    border-radius:10px;padding:11px 12px;cursor:pointer;box-shadow:var(--shadow);
+    transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+  .card:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);border-color:var(--line-2)}
   .card .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
-  .ttype{font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
-    padding:2px 7px;border-radius:4px}
+  .ttype{font-family:var(--mono);font-size:9.5px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.05em;padding:2px 7px;border-radius:5px;white-space:nowrap}
   .ckey{font-family:var(--mono);font-size:11px;color:var(--faint)}
-  .card .title{font-size:13.5px;line-height:1.35;font-weight:600}
+  .card .title{font-size:13.5px;line-height:1.4;font-weight:600;overflow-wrap:break-word}
   .card .meta{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
-  .pri{font-family:var(--mono);font-size:10px;display:flex;align-items:center;gap:4px;color:var(--muted)}
-  .pbar{display:inline-block;width:7px;height:7px;border-radius:2px}
+  .pri{font-family:var(--mono);font-size:10px;display:flex;align-items:center;gap:4px}
+  .pbar{display:inline-block;width:7px;height:7px;border-radius:2.5px}
   .chip{font-family:var(--mono);font-size:10px;color:var(--muted);background:var(--panel);
-    border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;max-width:140px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cc{font-family:var(--mono);font-size:10px;color:var(--faint)}
-  /* epic view */
-  .epic-group{margin-bottom:22px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
-  .epic-head{background:var(--panel);padding:13px 16px;display:flex;align-items:center;gap:10px;cursor:pointer}
-  .epic-head .title{font-weight:700}
-  .epic-body{padding:6px 16px 14px;display:flex;flex-direction:column;gap:7px}
-  .row{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:8px;cursor:pointer;
-    background:var(--panel-2);border:1px solid var(--line)}
-  .row:hover{border-color:var(--faint)}
-  .row .s{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:999px;white-space:nowrap}
-  .row .title{flex:1;font-size:13.5px}
-  .empty{color:var(--faint);font-family:var(--mono);font-size:13px;padding:30px;text-align:center}
-  /* modal */
-  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;
-    padding:24px;z-index:50}
-  .scrim.on{display:flex}
-  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:640px;width:100%;
-    max-height:85vh;overflow:auto;padding:24px}
-  .modal h3{margin:.2em 0 .1em;font-size:18px}
-  .modal .desc{color:var(--muted);line-height:1.55;white-space:pre-wrap;margin:14px 0;font-size:14px}
-  .modal .grid{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px;margin:12px 0}
-  .modal .grid dt{color:var(--faint);font-family:var(--mono);font-size:11px;padding-top:2px}
-  .cmts{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
-  .cmt{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px}
+  .empty-col{padding:12px 6px 16px;color:var(--faint);font-size:12px;font-family:var(--mono)}
+
+  /* by-epic view */
+  .epic-group{margin-bottom:20px;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    background:var(--panel);box-shadow:var(--shadow)}
+  .epic-head{padding:13px 16px;display:flex;align-items:center;gap:10px;cursor:pointer;flex-wrap:wrap}
+  .epic-head:hover{background:color-mix(in srgb,var(--card) 55%,transparent)}
+  .epic-head .title{font-weight:700;font-size:14px}
+  .prog{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .prog-bar{width:90px;height:4px;border-radius:999px;background:var(--line);overflow:hidden}
+  .prog-bar i{display:block;height:100%;background:var(--done);border-radius:999px}
+  .prog-n{font-family:var(--mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .pill{font-family:var(--mono);font-size:10px;padding:2px 9px;border-radius:999px;
+    white-space:nowrap;font-weight:700}
+  .epic-body{padding:6px 12px 12px;display:flex;flex-direction:column;gap:7px}
+  .row{display:flex;align-items:center;gap:12px;padding:9px 11px;border-radius:9px;cursor:pointer;
+    background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);flex-wrap:wrap;
+    transition:transform .12s,box-shadow .12s,border-color .12s}
+  .row:hover{transform:translateY(-1px);box-shadow:var(--shadow-hover);border-color:var(--line-2)}
+  .row .title{flex:1;font-size:13.5px;min-width:160px}
+  .note{color:var(--faint);font-family:var(--mono);font-size:11px;padding:6px 4px}
+  .empty{color:var(--muted);font-family:var(--mono);font-size:13px;padding:48px 20px;text-align:center}
+  .empty a{color:var(--review)}
+
+  /* drawer */
+  .scrim{position:fixed;inset:0;background:var(--scrim);z-index:50;opacity:0;pointer-events:none;
+    transition:opacity .2s ease}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(480px,100vw);z-index:60;background:var(--card);
+    border-left:1px solid var(--line);box-shadow:var(--shadow-drawer);padding:22px 26px 40px;
+    overflow-y:auto;transform:translateX(103%);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+  .drawer.on{transform:translateX(0)}
+  @media(max-width:640px){.drawer{width:100vw;border-left:0}}
+  .d-head{display:flex;align-items:center;gap:9px}
+  .d-head .x{margin-left:auto;background:transparent;border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;width:30px;height:30px;cursor:pointer;font-size:14px;line-height:1}
+  .d-head .x:hover{color:var(--ink);border-color:var(--line-2)}
+  .d-title{margin:12px 0 10px;font-size:19px;line-height:1.35;letter-spacing:-.01em}
+  .d-pills{display:flex;gap:6px;flex-wrap:wrap}
+  .d-sec{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--faint);
+    text-transform:uppercase;margin:20px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+  .d-desc{color:var(--muted);line-height:1.6;white-space:pre-wrap;font-size:13.5px;overflow-wrap:break-word}
+  .d-grid{display:grid;grid-template-columns:92px 1fr;gap:9px 14px;font-size:13px;margin:0}
+  .d-grid dt{color:var(--faint);font-family:var(--mono);font-size:11px;padding-top:1px}
+  .d-grid dd{margin:0;overflow-wrap:break-word}
+  .plink{color:var(--epic);text-decoration:underline dotted;cursor:pointer}
+  .cmt{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:10px 12px;
+    margin-bottom:8px}
   .cmt .h{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-bottom:4px}
-  .x{float:right;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;
-    width:30px;height:30px;cursor:pointer;font-size:15px}
-  footer{padding:20px 28px;color:var(--faint);font-family:var(--mono);font-size:11px;border-top:1px solid var(--line)}
+  .cmt .b{font-size:13px;line-height:1.55;color:var(--muted);white-space:pre-wrap;overflow-wrap:break-word}
+
+  footer{padding:20px 28px;color:var(--faint);font-family:var(--mono);font-size:11px;
+    border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
 <header>
   <div class="brand">
+    <span class="mark"></span>
     <h1 id="pname"></h1>
     <span class="key-tag" id="pkey"></span>
     <span class="repo" id="prepo"></span>
@@ -458,133 +551,233 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
   <div class="stats" id="stats"></div>
 </header>
 
-<div class="controls">
+<div id="sentinel"></div>
+<nav class="toolbar" id="toolbar">
+  <span class="key-tag mini" id="pkey2"></span>
   <div class="seg" id="viewseg">
     <button data-view="board" class="on">Board</button>
     <button data-view="epics">By Epic</button>
   </div>
-  <label class="flt">type
-    <select id="ftype"><option value="">all</option></select>
-  </label>
-  <label class="flt">priority
-    <select id="fpri"><option value="">all</option></select>
-  </label>
-</div>
+  <select id="fepic" title="filter by epic"></select>
+  <select id="ftype" title="filter by type"></select>
+  <select id="fpri" title="filter by priority"></select>
+  <input id="fsearch" type="search" placeholder="search key or title…" title="search by key or title">
+  <button class="clear-btn" id="fclear" hidden>✕ clear</button>
+  <button class="theme-btn" id="ftheme" title="toggle light/dark theme">🌙</button>
+</nav>
 
 <main id="main"></main>
 <footer id="foot"></footer>
 
-<div class="scrim" id="scrim"><div class="modal" id="modal"></div></div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
 
 <script id="board-data" type="application/json">__BOARD_DATA__</script>
 <script>
-const BOARD = JSON.parse(document.getElementById('board-data').textContent);
-const STATUSES = BOARD.statuses;
-const PRIORITIES = BOARD.priorities;
-const TYPE_COLOR = {Epic:'var(--epic)',Story:'var(--story)',Task:'var(--task)',Bug:'var(--bug)','Sub-task':'var(--sub)'};
-const STATUS_COLOR = {'To Do':'var(--todo)','In Progress':'var(--prog)','In Review':'var(--review)','Done':'var(--done)','Cancelled':'var(--cancel)'};
-const PRI_COLOR = {Highest:'#f85149',High:'#f0883e',Medium:'#d29922',Low:'#3fb950',Lowest:'#6e7681'};
-const esc = s => (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let view='board', fType='', fPri='';
+const BOARD=JSON.parse(document.getElementById('board-data').textContent);
+const STATUSES=BOARD.statuses, PRIORITIES=BOARD.priorities;
+const TYPE_COLOR={Epic:'var(--epic)',Story:'var(--story)',Task:'var(--task)',Bug:'var(--bug)','Sub-task':'var(--sub)'};
+const STATUS_COLOR={'To Do':'var(--todo)','In Progress':'var(--prog)','In Review':'var(--review)','Done':'var(--done)','Cancelled':'var(--cancel)'};
+const PRI_COLOR={Highest:'var(--pri-highest)',High:'var(--pri-high)',Medium:'var(--pri-medium)',Low:'var(--pri-low)',Lowest:'var(--pri-lowest)'};
+const tcol=t=>TYPE_COLOR[t]||'var(--muted)';
+const scol=s=>STATUS_COLOR[s]||'var(--muted)';
+const pcol=p=>PRI_COLOR[p]||'var(--muted)';
+const tint=(c,p)=>`color-mix(in srgb, ${c} ${p}%, transparent)`;
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const trunc=(s,n)=>{s=s==null?'':String(s);return s.length>n?s.slice(0,n-1)+'…':s};
+let view='board', fEpic='', fType='', fPri='', q='';
 
-function visible(){
-  return BOARD.issues.filter(i=>(!fType||i.type===fType)&&(!fPri||i.priority===fPri));
+const epicsOf=()=>BOARD.issues.filter(i=>i.type==='Epic');
+const isOrphan=i=>i.type!=='Epic'&&!epicsOf().some(e=>e.key===i.parent);
+function matchEpic(i){
+  if(!fEpic)return true;
+  if(fEpic==='__none__')return isOrphan(i);
+  return i.key===fEpic||i.parent===fEpic;
 }
+function matchSearch(i){
+  if(!q)return true;
+  const s=q.toLowerCase();
+  return i.key.toLowerCase().includes(s)||(i.title||'').toLowerCase().includes(s);
+}
+function passes(i,skip){
+  return (skip==='epic'||matchEpic(i))
+    &&(skip==='type'||!fType||i.type===fType)
+    &&(skip==='pri'||!fPri||i.priority===fPri)
+    &&matchSearch(i);
+}
+const visible=()=>BOARD.issues.filter(i=>passes(i));
+
 function header(){
   const p=BOARD.project;
   document.getElementById('pname').textContent=p.name;
   document.getElementById('pkey').textContent=p.key;
+  document.getElementById('pkey2').textContent=p.key;
   document.getElementById('prepo').textContent=p.repo||'';
   document.title=p.name+' · Work Tracker';
-  const counts={}; STATUSES.forEach(s=>counts[s]=0);
+  const counts={};STATUSES.forEach(s=>counts[s]=0);
   BOARD.issues.forEach(i=>counts[i.status]=(counts[i.status]||0)+1);
-  document.getElementById('stats').innerHTML =
-    `<span class="stat"><b>${BOARD.issues.length}</b> total</span>` +
-    STATUSES.filter(s=>counts[s]).map(s=>`<span class="stat"><span class="dot" style="background:${STATUS_COLOR[s]}"></span>${s} <b>${counts[s]}</b></span>`).join('');
-  document.getElementById('foot').textContent =
+  document.getElementById('stats').innerHTML=
+    `<span class="stat"><b>${BOARD.issues.length}</b> total</span>`+
+    STATUSES.filter(s=>counts[s]).map(s=>`<span class="stat"><span class="dot" style="background:${scol(s)}"></span>${esc(s)} <b>${counts[s]}</b></span>`).join('');
+  document.getElementById('foot').textContent=
     `source: .jira/board.json · regenerate with: python jira.py render · updated ${p.updated}`;
 }
-function fillFilters(){
-  document.getElementById('ftype').innerHTML='<option value="">all</option>'+BOARD.types.map(t=>`<option>${t}</option>`).join('');
-  document.getElementById('fpri').innerHTML='<option value="">all</option>'+PRIORITIES.map(p=>`<option>${p}</option>`).join('');
+function setOpts(id,opts,cur){
+  document.getElementById(id).innerHTML=opts.map(o=>
+    `<option value="${esc(o.v)}"${o.v===cur?' selected':''}>${esc(o.label)}</option>`).join('');
 }
+function fillFilters(){
+  const base=f=>BOARD.issues.filter(i=>passes(i,f));
+  const eb=base('epic');
+  const eOpts=[{v:'',label:`Epic · all (${eb.length})`}]
+    .concat(epicsOf().map(e=>({v:e.key,label:`${e.key} · ${trunc(e.title,32)} (${eb.filter(i=>i.key===e.key||i.parent===e.key).length})`})))
+    .concat([{v:'__none__',label:`— no epic (${eb.filter(isOrphan).length})`}]);
+  setOpts('fepic',eOpts,fEpic);
+  const tb=base('type');
+  setOpts('ftype',[{v:'',label:`Type · all (${tb.length})`}]
+    .concat(BOARD.types.map(t=>({v:t,label:`${t} (${tb.filter(i=>i.type===t).length})`}))),fType);
+  const pb=base('pri');
+  setOpts('fpri',[{v:'',label:`Priority · all (${pb.length})`}]
+    .concat(PRIORITIES.map(p=>({v:p,label:`${p} (${pb.filter(i=>i.priority===p).length})`}))),fPri);
+  document.getElementById('fclear').hidden=!(fEpic||fType||fPri||q);
+}
+function clearFilters(){
+  fEpic=fType=fPri=q='';
+  document.getElementById('fsearch').value='';
+  render();
+}
+const noMatch=()=>`<div class="empty">No issues match the current filters. <a href="#" onclick="clearFilters();return false">Clear filters</a></div>`;
+const noIssues=()=>`<div class="empty">No issues yet. Create one with: python jira.py add --type Task --title "..."</div>`;
+
 function cardHTML(i){
   const labels=(i.labels||[]).map(l=>`<span class="chip">${esc(l)}</span>`).join('');
   const cc=(i.comments&&i.comments.length)?`<span class="cc">💬 ${i.comments.length}</span>`:'';
-  return `<div class="card" style="border-left-color:${TYPE_COLOR[i.type]||'var(--line)'}" onclick="openIssue('${i.key}')">
+  return `<div class="card" style="--tc:${tcol(i.type)}" onclick="openIssue('${esc(i.key)}')">
     <div class="top">
-      <span class="ttype" style="background:${TYPE_COLOR[i.type]}22;color:${TYPE_COLOR[i.type]}">${i.type}</span>
-      <span class="ckey">${i.key}</span>
+      <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
+      <span class="ckey">${esc(i.key)}</span>
     </div>
     <div class="title">${esc(i.title)}</div>
     <div class="meta">
-      <span class="pri"><span class="pbar" style="background:${PRI_COLOR[i.priority]}"></span>${i.priority}</span>
+      <span class="pri" style="color:${pcol(i.priority)}"><span class="pbar" style="background:${pcol(i.priority)}"></span>${esc(i.priority)}</span>
       ${labels}${cc}
     </div></div>`;
 }
 function renderBoard(){
+  if(!BOARD.issues.length){document.getElementById('main').innerHTML=noIssues();return;}
   const items=visible();
+  if(!items.length){document.getElementById('main').innerHTML=noMatch();return;}
   document.getElementById('main').innerHTML='<div class="cols">'+STATUSES.map(s=>{
     const col=items.filter(i=>i.status===s);
-    const cards=col.length?col.map(cardHTML).join(''):'<div style="padding:18px 4px;color:var(--faint);font-size:12px;font-family:var(--mono)">—</div>';
-    return `<div class="col"><h2><span><span class="dot" style="background:${STATUS_COLOR[s]};display:inline-block;margin-right:7px"></span>${s}</span><span class="count">${col.length}</span></h2><div class="stack">${cards}</div></div>`;
+    const cards=col.length?col.map(cardHTML).join(''):'<div class="empty-col">—</div>';
+    return `<div class="col"><h2><span><span class="dot" style="background:${scol(s)};display:inline-block;margin-right:7px"></span>${esc(s)}</span><span class="count">${col.length}</span></h2><div class="stack">${cards}</div></div>`;
   }).join('')+'</div>';
 }
-function renderEpics(){
-  const items=visible();
-  const epics=items.filter(i=>i.type==='Epic');
-  const main=document.getElementById('main');
-  let html='';
-  const byParent=k=>items.filter(i=>i.parent===k);
-  epics.forEach(e=>{
-    const kids=byParent(e.key);
-    html+=`<div class="epic-group"><div class="epic-head" onclick="openIssue('${e.key}')">
-      <span class="ttype" style="background:${TYPE_COLOR.Epic}22;color:${TYPE_COLOR.Epic}">Epic</span>
-      <span class="ckey">${e.key}</span><span class="title">${esc(e.title)}</span>
-      <span class="row-s s" style="margin-left:auto;background:${STATUS_COLOR[e.status]}22;color:${STATUS_COLOR[e.status]}">${e.status}</span></div>`;
-    html+='<div class="epic-body">'+(kids.length?kids.map(rowHTML).join(''):'<div class="cc" style="color:var(--faint);padding:6px">no child issues yet</div>')+'</div></div>';
-  });
-  const orphans=items.filter(i=>i.type!=='Epic'&&!epics.some(e=>e.key===i.parent));
-  if(orphans.length){
-    html+=`<div class="epic-group"><div class="epic-head"><span class="title" style="color:var(--muted)">No Epic</span></div><div class="epic-body">${orphans.map(rowHTML).join('')}</div></div>`;
-  }
-  main.innerHTML=html||'<div class="empty">No issues yet. Create one with: python jira.py add --type Task --title "..."</div>';
-}
 function rowHTML(i){
-  return `<div class="row" onclick="openIssue('${i.key}')">
-    <span class="ttype" style="background:${TYPE_COLOR[i.type]}22;color:${TYPE_COLOR[i.type]}">${i.type}</span>
-    <span class="ckey">${i.key}</span>
+  return `<div class="row" onclick="openIssue('${esc(i.key)}')">
+    <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
+    <span class="ckey">${esc(i.key)}</span>
     <span class="title">${esc(i.title)}</span>
-    <span class="pri"><span class="pbar" style="background:${PRI_COLOR[i.priority]}"></span>${i.priority}</span>
-    <span class="s" style="background:${STATUS_COLOR[i.status]}22;color:${STATUS_COLOR[i.status]}">${i.status}</span></div>`;
+    <span class="pri" style="color:${pcol(i.priority)}"><span class="pbar" style="background:${pcol(i.priority)}"></span>${esc(i.priority)}</span>
+    <span class="pill" style="background:${tint(scol(i.status),14)};color:${scol(i.status)}">${esc(i.status)}</span></div>`;
 }
-function render(){ header(); view==='board'?renderBoard():renderEpics(); }
+function renderEpics(){
+  if(!BOARD.issues.length){document.getElementById('main').innerHTML=noIssues();return;}
+  const eps=epicsOf();
+  const items=visible();
+  const childFilter=!!(fType||fPri||q);
+  let html='';
+  eps.forEach(e=>{
+    if(fEpic&&fEpic!==e.key)return;
+    const kidsAll=BOARD.issues.filter(i=>i.parent===e.key);
+    const kids=items.filter(i=>i.parent===e.key);
+    if(!fEpic&&childFilter&&!kids.length)return;
+    const done=kidsAll.filter(k=>k.status==='Done').length;
+    const pct=kidsAll.length?Math.round(done/kidsAll.length*100):0;
+    const body=kids.length?kids.map(rowHTML).join('')
+      :(childFilter?'<div class="note">no matching issues</div>':'<div class="note">no child issues yet</div>');
+    html+=`<section class="epic-group"><div class="epic-head" onclick="openIssue('${esc(e.key)}')">
+      <span class="ttype" style="background:${tint(tcol('Epic'),14)};color:${tcol('Epic')}">Epic</span>
+      <span class="ckey">${esc(e.key)}</span><span class="title">${esc(e.title)}</span>
+      <span class="prog"><span class="prog-bar"><i style="width:${pct}%"></i></span><span class="prog-n">${done}/${kidsAll.length} done</span></span>
+      <span class="pill" style="background:${tint(scol(e.status),14)};color:${scol(e.status)}">${esc(e.status)}</span></div>
+      <div class="epic-body">${body}</div></section>`;
+  });
+  if(!fEpic||fEpic==='__none__'){
+    const orphans=items.filter(isOrphan);
+    if(orphans.length){
+      html+=`<section class="epic-group"><div class="epic-head" style="cursor:default"><span class="title" style="color:var(--muted)">No Epic</span></div><div class="epic-body">${orphans.map(rowHTML).join('')}</div></section>`;
+    }
+  }
+  document.getElementById('main').innerHTML=html||noMatch();
+}
+function render(){header();fillFilters();view==='board'?renderBoard():renderEpics();}
+
 function openIssue(key){
-  const i=BOARD.issues.find(x=>x.key===key); if(!i)return;
-  const m=document.getElementById('modal');
-  const rows=[['Type',i.type],['Status',i.status],['Priority',i.priority],['Parent',i.parent||'—'],
-    ['Assignee',i.assignee||'—'],['Labels',(i.labels||[]).join(', ')||'—'],
-    ['Components',(i.components||[]).join(', ')||'—'],['Created',i.created],['Updated',i.updated]];
-  m.innerHTML=`<button class="x" onclick="closeModal()">×</button>
-    <span class="ttype" style="background:${TYPE_COLOR[i.type]}22;color:${TYPE_COLOR[i.type]}">${i.type}</span>
-    <span class="ckey"> ${i.key}</span>
-    <h3>${esc(i.title)}</h3>
-    <dl class="grid">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-    ${i.description?`<div class="desc">${esc(i.description)}</div>`:''}
-    ${i.comments&&i.comments.length?`<div class="cmts"><div class="cc">comments (${i.comments.length})</div>${i.comments.map(c=>`<div class="cmt"><div class="h">${esc(c.author)} · ${esc(c.at)}</div>${esc(c.body)}</div>`).join('')}</div>`:''}`;
+  const i=BOARD.issues.find(x=>x.key===key);if(!i)return;
+  const d=document.getElementById('drawer');
+  const par=i.parent?BOARD.issues.find(x=>x.key===i.parent):null;
+  const parentCell=par
+    ?`<a class="plink" onclick="openIssue('${esc(par.key)}')">${esc(par.key)} · ${esc(trunc(par.title,30))}</a>`
+    :esc(i.parent||'—');
+  const rows=[
+    ['Parent',parentCell],
+    ['Assignee',esc(i.assignee||'—')],
+    ['Labels',(i.labels||[]).map(l=>`<span class="chip">${esc(l)}</span>`).join(' ')||'—'],
+    ['Components',(i.components||[]).map(c=>`<span class="chip">${esc(c)}</span>`).join(' ')||'—'],
+    ['Created',esc(i.created||'—')],
+    ['Updated',esc(i.updated||'—')]
+  ];
+  d.innerHTML=`<div class="d-head">
+      <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
+      <span class="ckey">${esc(i.key)}</span>
+      <button class="x" onclick="closeDrawer()" title="close">✕</button>
+    </div>
+    <h2 class="d-title">${esc(i.title)}</h2>
+    <div class="d-pills">
+      <span class="pill" style="background:${tint(scol(i.status),14)};color:${scol(i.status)}">${esc(i.status)}</span>
+      <span class="pill" style="border:1px solid ${tint(pcol(i.priority),50)};color:${pcol(i.priority)}">${esc(i.priority)}</span>
+    </div>
+    ${i.description?`<div class="d-sec">Description</div><div class="d-desc">${esc(i.description)}</div>`:''}
+    <div class="d-sec">Details</div>
+    <dl class="d-grid">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    ${(i.comments&&i.comments.length)?`<div class="d-sec">Comments (${i.comments.length})</div>`+
+      i.comments.map(c=>`<div class="cmt"><div class="h">${esc(c.author)} · ${esc(c.at)}</div><div class="b">${esc(c.body)}</div></div>`).join(''):''}`;
   document.getElementById('scrim').classList.add('on');
+  d.classList.add('on');d.setAttribute('aria-hidden','false');d.scrollTop=0;
 }
-function closeModal(){document.getElementById('scrim').classList.remove('on');}
-document.getElementById('scrim').addEventListener('click',e=>{if(e.target.id==='scrim')closeModal();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+function closeDrawer(){
+  document.getElementById('scrim').classList.remove('on');
+  const d=document.getElementById('drawer');
+  d.classList.remove('on');d.setAttribute('aria-hidden','true');
+}
+
+document.getElementById('scrim').addEventListener('click',closeDrawer);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
 document.getElementById('viewseg').addEventListener('click',e=>{
-  const b=e.target.closest('button'); if(!b)return;
-  view=b.dataset.view;[...document.querySelectorAll('#viewseg button')].forEach(x=>x.classList.toggle('on',x===b));
+  const b=e.target.closest('button');if(!b)return;
+  view=b.dataset.view;
+  [...document.querySelectorAll('#viewseg button')].forEach(x=>x.classList.toggle('on',x===b));
   render();
 });
+document.getElementById('fepic').addEventListener('change',e=>{fEpic=e.target.value;render();});
 document.getElementById('ftype').addEventListener('change',e=>{fType=e.target.value;render();});
 document.getElementById('fpri').addEventListener('change',e=>{fPri=e.target.value;render();});
-fillFilters(); render();
+document.getElementById('fsearch').addEventListener('input',e=>{q=e.target.value.trim();render();});
+document.getElementById('fclear').addEventListener('click',clearFilters);
+const themeBtn=document.getElementById('ftheme');
+function themeIcon(){themeBtn.textContent=document.documentElement.dataset.theme==='light'?'☀️':'🌙';}
+themeBtn.addEventListener('click',()=>{
+  const next=document.documentElement.dataset.theme==='light'?'dark':'light';
+  document.documentElement.dataset.theme=next;
+  try{localStorage.setItem('jt-theme',next);}catch(err){}
+  themeIcon();
+});
+themeIcon();
+new IntersectionObserver(es=>{
+  document.getElementById('toolbar').classList.toggle('stuck',!es[0].isIntersecting);
+},{rootMargin:'-1px 0px 0px 0px'}).observe(document.getElementById('sentinel'));
+render();
 </script>
 </body>
 </html>"""
