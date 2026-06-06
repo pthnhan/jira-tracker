@@ -466,25 +466,144 @@ class TestListParentGuard(BoardTestCase):
         self.assertIn("TST-2", r.stdout)
 
 
-class TestFilePositionBothWays(BoardTestCase):
-    """JT-32e: --file must be accepted before AND after the subcommand."""
+class TestFilePositionBothWays(unittest.TestCase):
+    """JT-32e: --file must be accepted before AND after the subcommand.
 
-    def test_file_before_subcommand(self):
-        board_path = str(self.dir / ".jira/board.json")
-        r = run(["--file", board_path, "list"], self.dir)
+    The real bug: argparse parses --file at the top level, then the subparser
+    runs with its own default (None) and OVERWRITES the namespace value.
+    Result: jira.py --file X <cmd> silently ignores X and uses DEFAULT_FILE.
+
+    These tests are intentionally run from a fresh temp cwd that has NO board,
+    so the default path .jira/board.json does not exist.  If --file is
+    accidentally ignored the command will fail with "no board found" (or will
+    write to the wrong place on init), making the bug detectable.
+    """
+
+    def setUp(self):
+        # empty_cwd: no .jira/ directory at all
+        self._empty_tmp = tempfile.TemporaryDirectory()
+        self.empty_cwd = Path(self._empty_tmp.name)
+        # target_dir: where the board should actually live
+        self._target_tmp = tempfile.TemporaryDirectory()
+        self.target_dir = Path(self._target_tmp.name)
+        self.board_file = self.target_dir / "board.json"
+        self.addCleanup(self._empty_tmp.cleanup)
+        self.addCleanup(self._target_tmp.cleanup)
+
+    def _init_board(self):
+        """Initialise a board at the target path."""
+        r = run(["--file", str(self.board_file), "init", "--name", "Remote", "--key", "REM"],
+                self.empty_cwd)
+        self.assertEqual(r.returncode, 0, f"init failed: {r.stderr}")
+
+    # ---- --file before subcommand ----
+
+    def test_file_before_subcommand_init_writes_target(self):
+        """init writes board.json to the --file path, not to cwd/.jira/board.json."""
+        r = run(["--file", str(self.board_file), "init", "--name", "Remote", "--key", "REM"],
+                self.empty_cwd)
         self.assertEqual(r.returncode, 0, r.stderr)
+        # Target file must exist
+        self.assertTrue(self.board_file.exists(),
+                        f"board.json not created at target {self.board_file}")
+        # cwd must have no .jira/ directory
+        self.assertFalse((self.empty_cwd / ".jira").exists(),
+                         ".jira/ must not be created in cwd when --file points elsewhere")
 
-    def test_file_after_subcommand(self):
-        board_path = str(self.dir / ".jira/board.json")
-        r = run(["list", "--file", board_path], self.dir)
+    def test_file_before_subcommand_list_reads_target(self):
+        """list with --file before subcommand reads from the target path."""
+        self._init_board()
+        r = run(["--file", str(self.board_file), "list"], self.empty_cwd)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        # No .jira/ in cwd
+        self.assertFalse((self.empty_cwd / ".jira").exists())
+
+    def test_file_before_subcommand_add_writes_target(self):
+        """add with --file before subcommand writes to the target path."""
+        self._init_board()
+        r = run(["--file", str(self.board_file), "add", "--type", "Task", "--title", "Pre-sub"],
+                self.empty_cwd)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        board = json.loads(self.board_file.read_text())
+        self.assertEqual(len(board["issues"]), 1)
+        self.assertFalse((self.empty_cwd / ".jira").exists())
+
+    # ---- --file after subcommand (must stay working) ----
+
+    def test_file_after_subcommand_list(self):
+        self._init_board()
+        r = run(["list", "--file", str(self.board_file)], self.empty_cwd)
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_file_after_add_subcommand(self):
-        board_path = str(self.dir / ".jira/board.json")
-        r = run(["add", "--file", board_path, "--type", "Task", "--title", "Via subparser file"], self.dir)
+        self._init_board()
+        r = run(["add", "--file", str(self.board_file), "--type", "Task", "--title", "Post-sub"],
+                self.empty_cwd)
         self.assertEqual(r.returncode, 0, r.stderr)
-        b = json.loads(Path(board_path).read_text())
-        self.assertEqual(len(b["issues"]), 1)
+        board = json.loads(self.board_file.read_text())
+        self.assertEqual(len(board["issues"]), 1)
+
+
+class TestJsonPositionBothWays(BoardTestCase):
+    """--json must be honored in BOTH positions (before and after the subcommand).
+
+    Before the fix, --json before the subcommand was silently ignored because
+    the subparser default (False) overwrote the True set by the top-level parser.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Seed one issue so list/next/show have something to output.
+        self.cli("add", "--type", "Task", "--title", "Seed issue")
+
+    def _assert_json(self, r, check_key):
+        """Assert the output is valid JSON containing check_key."""
+        self.assertEqual(r.returncode, 0, r.stderr)
+        try:
+            data = json.loads(r.stdout)
+        except json.JSONDecodeError:
+            self.fail(f"output is not valid JSON:\n{r.stdout!r}")
+        self.assertIn(check_key, data)
+
+    # ---- list ----
+
+    def test_json_before_subcommand_list(self):
+        r = run(["--json", "list"], self.dir)
+        self._assert_json(r, "issues")
+
+    def test_json_after_subcommand_list(self):
+        r = run(["list", "--json"], self.dir)
+        self._assert_json(r, "issues")
+
+    # ---- status ----
+
+    def test_json_before_subcommand_status(self):
+        r = run(["--json", "status"], self.dir)
+        self._assert_json(r, "project")
+
+    def test_json_after_subcommand_status(self):
+        r = run(["status", "--json"], self.dir)
+        self._assert_json(r, "project")
+
+    # ---- show ----
+
+    def test_json_before_subcommand_show(self):
+        r = run(["--json", "show", "TST-1"], self.dir)
+        self._assert_json(r, "key")
+
+    def test_json_after_subcommand_show(self):
+        r = run(["show", "TST-1", "--json"], self.dir)
+        self._assert_json(r, "key")
+
+    # ---- next ----
+
+    def test_json_before_subcommand_next(self):
+        r = run(["--json", "next"], self.dir)
+        self._assert_json(r, "recommendations")
+
+    def test_json_after_subcommand_next(self):
+        r = run(["next", "--json"], self.dir)
+        self._assert_json(r, "recommendations")
 
 
 class TestTemplateVersion(BoardTestCase):

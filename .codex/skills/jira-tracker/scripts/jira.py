@@ -1283,9 +1283,15 @@ if(openKey)openIssue(openKey);
 
 def build_parser():
     # common parent carries --file and --json so every subparser accepts them (JT-32e, JT-36)
+    # SUPPRESS as default means: if the flag is not provided by a particular parser level,
+    # that level does NOT write the key into the namespace at all — so a value set by an
+    # earlier parser level (e.g. the top-level parent) survives instead of being overwritten
+    # by the subparser's own default of None/False.
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--file", help=f"path to board json (default: {DEFAULT_FILE})")
+    common.add_argument("--file", default=argparse.SUPPRESS,
+                        help=f"path to board json (default: {DEFAULT_FILE})")
     common.add_argument("--json", action="store_true", dest="json",
+                        default=argparse.SUPPRESS,
                         help="emit compact JSON to stdout instead of human-readable output")
 
     p = argparse.ArgumentParser(prog="jira.py", description="Tiny Jira-style work tracker (JSON + HTML).",
@@ -1355,9 +1361,10 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
-    # When --file is given after the subcommand it lands on args.file already;
-    # when given before, it also lands on args.file from the top-level parser.
-    # Both positions set the same attribute — no extra resolution needed.
+    # --file and --json use default=SUPPRESS in the shared common parser so that
+    # a subparser that doesn't see the flag does NOT overwrite a value that was
+    # already set by the top-level parser.  All read sites use getattr(..., None)
+    # / getattr(..., False) which are the safe fallbacks when the key is absent.
     args.func(args)
 
 
