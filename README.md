@@ -30,7 +30,7 @@ examples/board.html          # the rendered view of that example
 
 The **repo-local copy** of `jira.py` is preferred when working inside this repo;
 boards carry a `template_version` stamp and refuse to be operated on by an older
-CLI copy, preventing silent UI regressions.
+CLI copy, preventing silent data corruption.
 
 When used, the board itself lives in the repo root under:
 

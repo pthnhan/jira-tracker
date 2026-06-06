@@ -313,7 +313,7 @@ acknowledge the change.
 
 ### Resolving merge conflicts on `board.json`
 
-`board.json` is a structured file that git may report as a conflict. This is the **one sanctioned hand-edit**: manually open the conflicted file, union both sides' issues by key (keep any issue that appears on either side), keep the higher `project.counter`, resolve other fields from the newer side, then run `render` to regenerate the HTML. Run `doctor` after to confirm.
+`board.json` is a structured file that git may report as a conflict. This is the **one sanctioned hand-edit**: manually open the conflicted file, union both sides' issues by key (keep any issue that appears on either side), keep the higher `project.counter`, resolve other fields from whichever side has the later `updated` timestamp, then run `render` to regenerate the HTML. Run `doctor` after to confirm.
 
 Example sequence:
 

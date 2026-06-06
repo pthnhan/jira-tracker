@@ -123,7 +123,7 @@ Candidates are non-Epic issues in `To Do` or `In Progress` with no open
 2. priority — Highest → Lowest,
 3. age — oldest `created` first.
 
-Issues excluded because all their blockers are Done/Cancelled are re-included.
+An issue whose blockers are all Done/Cancelled is treated as unblocked and stays in the recommendations.
 Issues with at least one open blocker appear after the main list in a separate
 "blocked:" section (`blocked` array in JSON mode).
 
@@ -140,7 +140,7 @@ variable based on the board's `statuses` array at render time:
   `--review`, `--done`, `--cancel`) that switch automatically between light and
   dark themes.
 - **Non-canonical statuses** (added by editing the `statuses` array directly)
-  receive a fallback CSS variable `var(--fb-N)` where `N` is a 0-based index
+  receive a fallback CSS variable `var(--fb-N)` where `N` is a 1-based slot (`--fb-1` through `--fb-8`)
   cycling through 8 distinct hue slots. Each non-canonical status gets its own
   consistent color across renders (deterministic assignment based on position in
   the statuses array); they never collapse to a single grey fallback.
