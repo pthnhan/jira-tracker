@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-06T12:50:07+07:00",
+    "updated": "2026-06-06T13:18:58+07:00",
     "counter": 40
   },
   "types": [
@@ -485,7 +485,7 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-06T01:32:21+07:00",
-      "updated": "2026-06-06T12:50:07+07:00",
+      "updated": "2026-06-06T13:18:57+07:00",
       "comments": [
         {
           "author": "agent",
@@ -496,6 +496,11 @@
           "author": "agent",
           "at": "2026-06-06T12:50:07+07:00",
           "body": "Task C starting: replacing all inline onclick with delegated data-key listeners (closes the JS-string escaping gap)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:57+07:00",
+          "body": "Delegation half shipped in ea59540: zero inline onclick, data-key/data-action delegation, keyboard activation on cards/rows, parent link is a real anchor; keys never reach JS-string contexts. Remaining: drawer focus management + :focus-visible (Task D). Bonus fix ad14421: --file/--json now honored before the subcommand (argparse SUPPRESS)."
         }
       ]
     },
@@ -504,7 +509,7 @@
       "type": "Bug",
       "title": "Epic-filter semantics inconsistent: dropdown counts, empty state, header visibility",
       "description": "From the 2026-06-06 high-effort review of the redesign (jira.py ~633/691/706): (1) epic dropdown count uses the filtered set while the group progress denominator uses ALL unfiltered children — numbers diverge under any active filter (CONFIRMED); (2) a selected epic whose children are all filtered out still renders a header with 'no matching issues' because the suppression guard requires !fEpic (CONFIRMED); (3) epic-group visibility is driven solely by matching children, never testing the epic's own type/priority against active filters (PLAUSIBLE).",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -516,12 +521,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:02+07:00",
-      "updated": "2026-06-06T12:50:07+07:00",
+      "updated": "2026-06-06T13:18:57+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T12:50:07+07:00",
           "body": "Task C: unified epic-filter semantics (memberCount drives dropdown counts, group visibility, and noMatch state)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:57+07:00",
+          "body": "memberCount (transitive members passing non-epic facets) now drives dropdown counts, group rendering, and the noMatch state; progress bar is explicitly overall/unfiltered with a title. Dropdown number == rendered content by construction. Commit ea59540."
         }
       ]
     },
@@ -530,7 +540,7 @@
       "type": "Bug",
       "title": "Grandchild sub-tasks fall into 'No Epic' — epic grouping matches direct parent only",
       "description": "matchEpic/isOrphan/renderEpics (jira.py ~591/595/693) only test i.parent===epic.key. valid_parent imposes no type rule, so Sub-task→Story→Epic chains are permitted by the data model but render under 'No Epic' and are hidden when their epic is selected. Carried over from the old template; no such chain exists in shipped data yet.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -542,12 +552,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:02+07:00",
-      "updated": "2026-06-06T12:50:07+07:00",
+      "updated": "2026-06-06T13:18:57+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T12:50:07+07:00",
           "body": "Task C: transitive nearest-Epic-ancestor membership map (cycle-safe)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:57+07:00",
+          "body": "EPIC_OF map: nearest-Epic-ancestor via cycle-safe parent-chain walk, built once per render; grandchildren attribute to the nearest epic, cycles degrade to orphans. Commit ea59540."
         }
       ]
     },
@@ -556,6 +571,37 @@
       "type": "Task",
       "title": "Restore at-a-glance status counts while scrolled",
       "description": "The redesign un-stickied the header: per-status count chips (#stats) and project name scroll away; the sticky toolbar carries only filters + mini key badge. Surface the counts in (or near) the sticky toolbar so the summary stays visible on long boards.",
+      "status": "Done",
+      "priority": "Low",
+      "parent": "JT-6",
+      "labels": [
+        "ui",
+        "review-findings"
+      ],
+      "components": [
+        "board-template"
+      ],
+      "assignee": "",
+      "created": "2026-06-06T09:52:16+07:00",
+      "updated": "2026-06-06T13:18:57+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:50:07+07:00",
+          "body": "Task C: compact status chips inside the sticky toolbar when stuck."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:57+07:00",
+          "body": "Compact per-status dot+count strip (#ministats) in the toolbar, visible when stuck. Commit ea59540."
+        }
+      ]
+    },
+    {
+      "key": "JT-24",
+      "type": "Task",
+      "title": "Derive board grid tracks and status colors from BOARD.statuses",
+      "description": "CSS hardcodes repeat(5,...) (jira.py ~462) and 5 status color vars/maps (~380/580) while JS treats BOARD.statuses as dynamic (columns from STATUSES.map, ||'var(--muted)' fallbacks). A hand-edited statuses list (board.json is the documented source of truth) overflows the grid and renders grey columns. Generate track count and a color assignment from the status list at render time.",
       "status": "In Progress",
       "priority": "Low",
       "parent": "JT-6",
@@ -568,34 +614,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:16+07:00",
-      "updated": "2026-06-06T12:50:07+07:00",
+      "updated": "2026-06-06T13:18:58+07:00",
       "comments": [
         {
           "author": "agent",
-          "at": "2026-06-06T12:50:07+07:00",
-          "body": "Task C: compact status chips inside the sticky toolbar when stuck."
+          "at": "2026-06-06T13:18:58+07:00",
+          "body": "Task D: grid + status colors generated from BOARD.statuses (no repeat(5), no all-grey unknowns)."
         }
       ]
-    },
-    {
-      "key": "JT-24",
-      "type": "Task",
-      "title": "Derive board grid tracks and status colors from BOARD.statuses",
-      "description": "CSS hardcodes repeat(5,...) (jira.py ~462) and 5 status color vars/maps (~380/580) while JS treats BOARD.statuses as dynamic (columns from STATUSES.map, ||'var(--muted)' fallbacks). A hand-edited statuses list (board.json is the documented source of truth) overflows the grid and renders grey columns. Generate track count and a color assignment from the status list at render time.",
-      "status": "To Do",
-      "priority": "Low",
-      "parent": "JT-6",
-      "labels": [
-        "ui",
-        "review-findings"
-      ],
-      "components": [
-        "board-template"
-      ],
-      "assignee": "",
-      "created": "2026-06-06T09:52:16+07:00",
-      "updated": "2026-06-06T09:52:16+07:00",
-      "comments": []
     },
     {
       "key": "JT-25",
@@ -672,7 +698,7 @@
       "type": "Task",
       "title": "Drawer dialog semantics + focus management",
       "description": "Drawer opens without moving focus, no Tab trap, no focus restore, no role=dialog/aria-modal/aria-labelledby. Make it a real dialog: focus close btn on open, trap Tab, Esc closes, restore opener focus on close, :focus-visible outlines.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -684,15 +710,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T13:18:58+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:58+07:00",
+          "body": "Task D starting: role=dialog, aria-modal, labelledby, focus trap/restore."
+        }
+      ]
     },
     {
       "key": "JT-29",
       "type": "Task",
       "title": "WCAG contrast pass for badges and faint tokens",
       "description": "Measured failures: light-theme Story/Done green 2.82:1, pri-High orange 3.0:1, Bug red 3.89:1 on 14% tints; --faint (keys, epic progress) 2.65:1 light / 3.0:1 dark. Raise tint to ~24%, darken light greens and --faint, promote .ckey/.prog-n to --muted; verify >=4.5:1 computationally in both themes.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -704,15 +736,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T13:18:58+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:58+07:00",
+          "body": "Task D: tint 14->24%, light-theme green/orange + faint token adjustments, computational AA verification."
+        }
+      ]
     },
     {
       "key": "JT-30",
       "type": "Task",
       "title": "URL-hash deep links for filters, view, and open issue",
       "description": "All view/filter/search/drawer state lives in JS vars and dies on reload; links are unshareable. Serialize state to location.hash (replaceState), parse on load, support bare #JT-7 shorthand, handle hashchange.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -724,12 +762,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:50:07+07:00",
+      "updated": "2026-06-06T13:18:57+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T12:50:07+07:00",
           "body": "Task C: URL-hash state (replaceState) for view/filters/search/open issue incl. bare #JT-n shorthand."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:57+07:00",
+          "body": "URL-hash state via URLSearchParams + replaceState (view/epic/type/pri/q/issue), bare #JT-n shorthand, hashchange listener with self-write guard; special chars round-trip. Commit ea59540."
         }
       ]
     },
@@ -781,7 +824,7 @@
       "type": "Task",
       "title": "Template polish: print styles, reduced-motion, linkify, theme sync, responsive step, search flex",
       "description": "No @media print (sticky toolbar overlaps, dark wastes ink); no prefers-reduced-motion; URLs in descriptions/comments not clickable (escape-first linkify); theme not synced across tabs/OS changes; 1100-1200px responsive gap needs a 3-col step; search input fixed at 190px should flex.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -793,8 +836,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T13:18:58+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:58+07:00",
+          "body": "Task D: print styles, reduced-motion, linkify, theme sync, responsive step, search flex."
+        }
+      ]
     },
     {
       "key": "JT-34",
@@ -924,7 +973,7 @@
       "type": "Task",
       "title": "Relative timestamps in the board HTML",
       "description": "Render '2d ago' style times on cards, drawer meta, comments, and footer with absolute ISO in title tooltips.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Low",
       "parent": "JT-35",
       "labels": [
@@ -936,8 +985,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T12:03:07+07:00",
-      "comments": []
+      "updated": "2026-06-06T13:18:58+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:18:58+07:00",
+          "body": "Task D: relative timestamps with ISO tooltips."
+        }
+      ]
     },
     {
       "key": "JT-40",
