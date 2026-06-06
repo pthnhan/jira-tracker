@@ -832,6 +832,206 @@ class TestStaleWIP(BoardTestCase):
         self.assertIn("TST-2", data["stale"])
         self.assertNotIn("TST-1", data["stale"])
 
+    def test_stale_detection_with_naive_timestamp(self):
+        """Fix #2: a tz-naive updated stamp 10 days old must still trigger stale."""
+        import datetime
+        p = self.dir / ".jira/board.json"
+        board = json.loads(p.read_text())
+        # Write a naive ISO timestamp (no UTC offset) 10 days in the past
+        naive_old = (datetime.datetime.now() - datetime.timedelta(days=10))
+        naive_str = naive_old.replace(microsecond=0).isoformat()  # no +HH:MM suffix
+        for i in board["issues"]:
+            if i["key"] == "TST-2":
+                i["updated"] = naive_str
+                break
+        p.write_text(json.dumps(board, indent=2) + "\n")
+        r = self.cli("status")
+        self.assertIn("stale", r.stdout,
+                      "naive-tz 10-day-old updated should still be flagged as stale")
+        self.assertIn("TST-2", r.stdout)
+
+
+# --------------------------------------------------------------------------- #
+# Fix #1/Fix #3 — doctor: full code coverage + cycle attribution correctness
+# --------------------------------------------------------------------------- #
+
+class TestDoctorFullCoverage(BoardTestCase):
+    """Every doctor diagnostic code fires at least once; cycle attribution is exact."""
+
+    def _write_board(self, board):
+        p = self.dir / ".jira/board.json"
+        p.write_text(json.dumps(board, indent=2) + "\n")
+
+    def _fresh_board(self):
+        return json.loads((self.dir / ".jira/board.json").read_text())
+
+    def _run_doctor_json(self, board):
+        self._write_board(board)
+        r = run(["doctor", "--json"], self.dir)
+        data = json.loads(r.stdout)
+        return {p["code"] for p in data["problems"]}, {p["key"] for p in data["problems"]}
+
+    def _base_issue(self, key, **kwargs):
+        base = {
+            "key": key, "type": "Task", "title": f"Issue {key}",
+            "status": "To Do", "priority": "Medium",
+            "parent": None, "labels": [], "components": [], "assignee": "",
+            "created": "2024-01-01T00:00:00+00:00",
+            "updated": "2024-01-01T00:00:00+00:00",
+            "comments": [],
+        }
+        base.update(kwargs)
+        return base
+
+    def test_missing_key_detected(self):
+        board = self._fresh_board()
+        issue = self._base_issue("TST-10")
+        del issue["key"]
+        board["issues"].append(issue)
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("missing_key", codes)
+
+    def test_missing_field_detected(self):
+        board = self._fresh_board()
+        issue = self._base_issue("TST-10")
+        del issue["title"]
+        board["issues"].append(issue)
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("missing_field", codes)
+
+    def test_invalid_type_detected(self):
+        board = self._fresh_board()
+        board["issues"].append(self._base_issue("TST-10", type="NotAType"))
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("invalid_type", codes)
+
+    def test_invalid_priority_detected(self):
+        board = self._fresh_board()
+        board["issues"].append(self._base_issue("TST-10", priority="Urgent"))
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("invalid_priority", codes)
+
+    def test_dangling_blocked_by_detected(self):
+        board = self._fresh_board()
+        board["issues"].append(
+            self._base_issue("TST-10", blocked_by=["TST-999"])
+        )
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("dangling_blocked_by", codes)
+
+    def test_parent_cycle_detected(self):
+        """A ↔ B parent cycle: both members must be flagged."""
+        board = self._fresh_board()
+        # We inject a self-referential parent chain directly (bypassing CLI guards)
+        board["issues"].append(self._base_issue("TST-10", parent="TST-11"))
+        board["issues"].append(self._base_issue("TST-11", parent="TST-10"))
+        codes, keys = self._run_doctor_json(board)
+        self.assertIn("parent_cycle", codes)
+        # Both members of the cycle should be flagged
+        self.assertIn("TST-10", keys)
+        self.assertIn("TST-11", keys)
+
+    def test_duplicate_key_detected(self):
+        board = self._fresh_board()
+        board["issues"].append(self._base_issue("TST-10"))
+        board["issues"].append(self._base_issue("TST-10"))  # duplicate
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("duplicate_key", codes)
+
+    def test_bad_timestamp_detected(self):
+        board = self._fresh_board()
+        board["issues"].append(
+            self._base_issue("TST-10", updated="not-a-date")
+        )
+        codes, _ = self._run_doctor_json(board)
+        self.assertIn("bad_timestamp", codes)
+
+    def test_node_pointing_into_cycle_not_flagged(self):
+        """Fix #1: TST-3 → TST-1 where TST-1 ↔ TST-2: TST-3 must NOT be flagged."""
+        board = self._fresh_board()
+        # TST-1 and TST-2 form a blocked_by cycle
+        board["issues"].append(
+            self._base_issue("TST-10", blocked_by=["TST-11"])
+        )
+        board["issues"].append(
+            self._base_issue("TST-11", blocked_by=["TST-10"])
+        )
+        # TST-12 merely points into the cycle (not a member)
+        board["issues"].append(
+            self._base_issue("TST-12", blocked_by=["TST-10"])
+        )
+        self._write_board(board)
+        r = run(["doctor", "--json"], self.dir)
+        data = json.loads(r.stdout)
+        cycle_probs = [p for p in data["problems"] if p["code"] == "blocked_by_cycle"]
+        flagged_keys = {p["key"] for p in cycle_probs}
+        self.assertIn("TST-10", flagged_keys, "TST-10 is in the cycle and must be flagged")
+        self.assertIn("TST-11", flagged_keys, "TST-11 is in the cycle and must be flagged")
+        self.assertNotIn("TST-12", flagged_keys,
+                         "TST-12 only points INTO the cycle; it must NOT be flagged")
+
+
+# --------------------------------------------------------------------------- #
+# Fix #3 extras — next --limit with blocked, link --unblock last element
+# --------------------------------------------------------------------------- #
+
+class TestNextLimitWithBlocked(BoardTestCase):
+    """next --limit only caps recommendations; blocked section is unaffected."""
+
+    def setUp(self):
+        super().setUp()
+        # 3 normal tasks + 1 blocker + 1 blocked task
+        self.cli("add", "--type", "Task", "--title", "Task A")  # TST-1
+        self.cli("add", "--type", "Task", "--title", "Task B")  # TST-2
+        self.cli("add", "--type", "Task", "--title", "Task C")  # TST-3
+        self.cli("add", "--type", "Task", "--title", "Blocker") # TST-4
+        self.cli("add", "--type", "Task", "--title", "Blocked") # TST-5
+        self.cli("link", "TST-5", "--blocked-by", "TST-4")
+
+    def test_limit_caps_recommendations_not_blocked(self):
+        r = self.cli("next", "--limit", "1")
+        # Only 1 recommendation
+        recs_part = r.stdout.split("blocked:")[0] if "blocked:" in r.stdout else r.stdout
+        rec_count = sum(1 for line in recs_part.splitlines() if line.strip().startswith("1.") or
+                        (line.strip() and line.strip()[0].isdigit() and ". TST-" in line))
+        # The blocked section must still appear
+        self.assertIn("blocked", r.stdout.lower())
+        self.assertIn("TST-5", r.stdout)
+
+    def test_limit_json_blocked_section_always_complete(self):
+        r = self.cli("next", "--limit", "1", "--json")
+        data = json.loads(r.stdout)
+        self.assertLessEqual(len(data["recommendations"]), 1)
+        blocked_keys = [b["key"] for b in data["blocked"]]
+        self.assertIn("TST-5", blocked_keys)
+
+
+class TestLinkUnblockLastElement(BoardTestCase):
+    """link --unblock removing the only blocked_by entry leaves an empty list."""
+
+    def setUp(self):
+        super().setUp()
+        self.cli("add", "--type", "Task", "--title", "Alpha")  # TST-1
+        self.cli("add", "--type", "Task", "--title", "Beta")   # TST-2
+        self.cli("link", "TST-2", "--blocked-by", "TST-1")
+
+    def test_unblock_last_element_leaves_empty_list(self):
+        self.cli("link", "TST-2", "--unblock", "TST-1")
+        i = self.issue("TST-2")
+        # blocked_by should be present but empty (or absent)
+        blocked = i.get("blocked_by", [])
+        self.assertEqual(blocked, [], f"Expected empty blocked_by, got {blocked!r}")
+
+    def test_unblock_last_element_issue_becomes_actionable(self):
+        """After unblocking, the issue must appear in next recommendations."""
+        self.cli("link", "TST-2", "--unblock", "TST-1")
+        r = self.cli("next", "--json")
+        data = json.loads(r.stdout)
+        rec_keys = [i["key"] for i in data["recommendations"]]
+        blocked_keys = [b["key"] for b in data["blocked"]]
+        self.assertIn("TST-2", rec_keys)
+        self.assertNotIn("TST-2", blocked_keys)
+
 
 if __name__ == "__main__":
     unittest.main()

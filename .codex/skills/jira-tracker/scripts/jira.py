@@ -180,13 +180,17 @@ def _stale_days(issue) -> int:
     try:
         updated = _dt.datetime.fromisoformat(issue["updated"])
         now_dt = _dt.datetime.now().astimezone()
+        # If the stored stamp is tz-naive (no UTC offset), attach local tz so
+        # the subtraction doesn't raise TypeError.
+        if updated.tzinfo is None:
+            updated = updated.astimezone()
         return max(0, (now_dt - updated).days)
     except Exception:
         return -1
 
 
 def _is_stale(issue) -> bool:
-    """True when the issue is In Progress and updated > STALE_DAYS ago."""
+    """True when the issue is In Progress and updated >= STALE_DAYS ago."""
     if issue.get("status") != "In Progress":
         return False
     d = _stale_days(issue)
@@ -406,7 +410,8 @@ def cmd_next(args):
         print("recommended next:\n")
         for n, i in enumerate(top, 1):
             marker = "▶ (resume)" if i["status"] == "In Progress" else ""
-            stale_note = f"  ⚠ stale {_stale_days(i)}d" if _is_stale(i) else ""
+            sd = _stale_days(i)
+            stale_note = f"  ⚠ stale {sd}d" if sd >= STALE_DAYS and i["status"] == "In Progress" else ""
             print(f"  {n}. {i['key']:<8} [{i['priority']}] {i['type']}: {i['title']}  {marker}{stale_note}")
     if blocked_list:
         print("\nblocked:\n")
@@ -465,6 +470,8 @@ def cmd_status(args):
     if getattr(args, "json", False):
         print(json.dumps({
             "project": board["project"],
+            # counts covers only canonical statuses; non-canonical ones are omitted
+            # here but still included in total (doctor flags them as invalid_status).
             "counts": {s: by_status.get(s, 0) for s in STATUSES},
             "total": len(issues),
             "in_progress": [i["key"] for i in in_prog],
@@ -480,7 +487,8 @@ def cmd_status(args):
     if in_prog:
         print("\nin progress:")
         for i in sorted(in_prog, key=_sort_key):
-            stale_note = f"  ⚠ stale {_stale_days(i)}d" if _is_stale(i) else ""
+            sd = _stale_days(i)
+            stale_note = f"  ⚠ stale {sd}d" if sd >= STALE_DAYS else ""
             print(f"  {i['key']:<8} {i['title']}{stale_note}")
 
 
@@ -531,19 +539,62 @@ def cmd_doctor(args):
         parent = i.get("parent")
         if parent and parent not in by_key:
             prob("dangling_parent", k, f"{k}: parent {parent!r} does not exist")
-    # Cycle in parent chain (DFS)
-    def _parent_cycle(start_key):
-        visited, cur = set(), start_key
-        while cur:
-            if cur in visited:
-                return True
-            visited.add(cur)
-            cur = by_key.get(cur, {}).get("parent")
-        return False
-    for i in issues:
-        k = i.get("key", "?")
-        if k in by_key and _parent_cycle(k):
-            prob("parent_cycle", k, f"{k}: parent chain forms a cycle")
+
+    def _find_cycle_members(nodes, neighbors_fn):
+        """Return the set of node keys that are TRUE members of a cycle.
+
+        Uses iterative DFS with enter/exit markers (WHITE/GRAY/BLACK colouring).
+        A back-edge (GRAY→GRAY) identifies a cycle; we then walk back along the
+        ancestor stack to collect every node on that cycle path.  Nodes that
+        merely point INTO a cycle — without being on it — are NOT included.
+        """
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color = {n: WHITE for n in nodes}
+        cycle_members = set()
+
+        for start in nodes:
+            if color[start] != WHITE:
+                continue
+            # Stack entries: (node, iterator_of_neighbours, ancestor_path)
+            path = []
+            path_set = set()
+            stack = [(start, iter(neighbors_fn(start)))]
+            color[start] = GRAY
+            path.append(start)
+            path_set.add(start)
+
+            while stack:
+                node, nbr_iter = stack[-1]
+                try:
+                    nxt = next(nbr_iter)
+                    if nxt not in nodes:
+                        continue
+                    if color[nxt] == GRAY:
+                        # Back-edge: nxt is an ancestor — collect the cycle
+                        idx = path.index(nxt)
+                        cycle_members.update(path[idx:])
+                    elif color[nxt] == WHITE:
+                        color[nxt] = GRAY
+                        path.append(nxt)
+                        path_set.add(nxt)
+                        stack.append((nxt, iter(neighbors_fn(nxt))))
+                except StopIteration:
+                    # Done with node — pop it
+                    stack.pop()
+                    color[node] = BLACK
+                    if path and path[-1] == node:
+                        path.pop()
+                        path_set.discard(node)
+
+        return cycle_members
+
+    # Cycle in parent chain
+    parent_cycle_members = _find_cycle_members(
+        set(by_key),
+        lambda k: [by_key[k]["parent"]] if by_key[k].get("parent") in by_key else [],
+    )
+    for k in parent_cycle_members:
+        prob("parent_cycle", k, f"{k}: is part of a parent-chain cycle")
 
     # Dangling blocked_by references + blocked_by cycles
     for i in issues:
@@ -551,21 +602,13 @@ def cmd_doctor(args):
         for blk in i.get("blocked_by", []):
             if blk not in by_key:
                 prob("dangling_blocked_by", k, f"{k}: blocked_by {blk!r} does not exist")
-    # Cycle in blocked_by graph (DFS from each node)
-    def _blocked_by_cycle(start_key):
-        visited, stack = set(), [start_key]
-        while stack:
-            cur = stack.pop()
-            if cur in visited:
-                return True
-            visited.add(cur)
-            for nxt in by_key.get(cur, {}).get("blocked_by", []):
-                stack.append(nxt)
-        return False
-    for i in issues:
-        k = i.get("key", "?")
-        if k in by_key and _blocked_by_cycle(k):
-            prob("blocked_by_cycle", k, f"{k}: blocked_by graph forms a cycle")
+
+    blocked_by_cycle_members = _find_cycle_members(
+        set(by_key),
+        lambda k: [n for n in by_key[k].get("blocked_by", []) if n in by_key],
+    )
+    for k in blocked_by_cycle_members:
+        prob("blocked_by_cycle", k, f"{k}: is part of a blocked_by cycle")
 
     # Counter drift
     counter = board.get("project", {}).get("counter", 0)
@@ -649,12 +692,14 @@ def cmd_link(args):
             if _blocked_by_has_cycle_adding(by_key, key, other_key):
                 die(f"adding {other_key} to {key}'s blocked_by would create a cycle")
             current = issue.setdefault("blocked_by", [])
-            if other_key not in current:
+            if other_key in current:
+                print(f"{key}: already blocked by {other_key} (no change)")
+            else:
                 current.append(other_key)
                 current.sort()
-            issue["updated"] = now()
-            save(board, args)
-            print(f"{key}: now blocked by {other_key}")
+                issue["updated"] = now()
+                save(board, args)
+                print(f"{key}: now blocked by {other_key}")
 
         elif args.unblock:
             other_key = find(board, args.unblock)["key"]
