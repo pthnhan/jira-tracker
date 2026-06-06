@@ -49,6 +49,8 @@ DEFAULT_FILE = Path(".jira/board.json")
 
 TEMPLATE_VERSION = 2
 
+STALE_DAYS = 7
+
 
 # --------------------------------------------------------------------------- #
 # Helpers
@@ -171,6 +173,24 @@ def split_csv(value):
     if not value:
         return []
     return [v.strip() for v in value.split(",") if v.strip()]
+
+
+def _stale_days(issue) -> int:
+    """Return whole days since issue['updated'], or -1 if unparseable."""
+    try:
+        updated = _dt.datetime.fromisoformat(issue["updated"])
+        now_dt = _dt.datetime.now().astimezone()
+        return max(0, (now_dt - updated).days)
+    except Exception:
+        return -1
+
+
+def _is_stale(issue) -> bool:
+    """True when the issue is In Progress and updated > STALE_DAYS ago."""
+    if issue.get("status") != "In Progress":
+        return False
+    d = _stale_days(issue)
+    return d >= STALE_DAYS
 
 
 def resolve_parent(board: dict, parent_key: str, child_key: str = None) -> str:
@@ -341,6 +361,9 @@ def cmd_list(args):
     if not args.all and not args.status:  # an explicit --status filter implies --all
         issues = [i for i in issues if i["status"] in OPEN_STATUSES]
     issues.sort(key=_sort_key)
+    if getattr(args, "json", False):
+        print(json.dumps({"issues": issues}, ensure_ascii=False))
+        return
     if not issues:
         print("(no matching issues)")
         return
@@ -351,24 +374,56 @@ def cmd_list(args):
         print(f"  {i['key']:<8} {i['type']:<8} {i['priority']:<7} {i['status']:<12} {i['title']}{parent}{cc}")
 
 
+def _open_blockers(issue, by_key):
+    """Return list of open blocker keys for an issue."""
+    return [k for k in issue.get("blocked_by", [])
+            if k in by_key and by_key[k]["status"] not in CLOSED_STATUSES]
+
+
 def cmd_next(args):
     board = load(args)
-    candidates = [i for i in board["issues"]
+    by_key = {i["key"]: i for i in board["issues"]}
+    actionable = [i for i in board["issues"]
                   if i["type"] != "Epic" and i["status"] in {"To Do", "In Progress"}]
+    # Partition into unblocked recommendations and blocked issues
+    blocked_list = []
+    candidates = []
+    for i in actionable:
+        open_blk = _open_blockers(i, by_key)
+        if open_blk:
+            blocked_list.append({"key": i["key"], "blocked_by_open": open_blk})
+        else:
+            candidates.append(i)
     candidates.sort(key=_sort_key)
     top = candidates[: args.limit]
-    if not top:
+    if getattr(args, "json", False):
+        print(json.dumps({"recommendations": top, "blocked": blocked_list}, ensure_ascii=False))
+        return
+    if not top and not blocked_list:
         print("nothing actionable — all work is Done, Cancelled, or In Review.")
         return
-    print("recommended next:\n")
-    for n, i in enumerate(top, 1):
-        marker = "▶ (resume)" if i["status"] == "In Progress" else ""
-        print(f"  {n}. {i['key']:<8} [{i['priority']}] {i['type']}: {i['title']}  {marker}")
+    if top:
+        print("recommended next:\n")
+        for n, i in enumerate(top, 1):
+            marker = "▶ (resume)" if i["status"] == "In Progress" else ""
+            stale_note = f"  ⚠ stale {_stale_days(i)}d" if _is_stale(i) else ""
+            print(f"  {n}. {i['key']:<8} [{i['priority']}] {i['type']}: {i['title']}  {marker}{stale_note}")
+    if blocked_list:
+        print("\nblocked:\n")
+        for entry in blocked_list:
+            blk_str = ", ".join(
+                f"{k} ({by_key[k]['status']})" if k in by_key else k
+                for k in entry["blocked_by_open"]
+            )
+            print(f"  {entry['key']:<8} blocked by: {blk_str}")
 
 
 def cmd_show(args):
     board = load(args)
     i = find(board, args.key)
+    if getattr(args, "json", False):
+        print(json.dumps(i, ensure_ascii=False))
+        return
     print(f"{i['key']}  {i['type']}  [{i['status']} / {i['priority']}]")
     print(f"title:      {i['title']}")
     if i.get("parent"):
@@ -381,6 +436,16 @@ def cmd_show(args):
         print(f"components: {', '.join(i['components'])}")
     print(f"created:    {i['created']}")
     print(f"updated:    {i['updated']}")
+    # blocked_by / blocks
+    blocked_by = i.get("blocked_by", [])
+    if blocked_by:
+        by_key = {x["key"]: x for x in board["issues"]}
+        parts = [f"{k} ({by_key[k]['status']})" if k in by_key else k for k in blocked_by]
+        print(f"blocked by: {', '.join(parts)}")
+    # Compute reverse: which issues does this block?
+    blocks = [x["key"] for x in board["issues"] if i["key"] in x.get("blocked_by", [])]
+    if blocks:
+        print(f"blocks:     {', '.join(blocks)}")
     if i.get("description"):
         print(f"\n{i['description']}")
     if i["comments"]:
@@ -395,17 +460,211 @@ def cmd_status(args):
     by_status = {s: 0 for s in STATUSES}
     for i in issues:
         by_status[i["status"]] = by_status.get(i["status"], 0) + 1
+    in_prog = [i for i in issues if i["status"] == "In Progress"]
+    stale_keys = [i["key"] for i in in_prog if _is_stale(i)]
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "project": board["project"],
+            "counts": {s: by_status.get(s, 0) for s in STATUSES},
+            "total": len(issues),
+            "in_progress": [i["key"] for i in in_prog],
+            "stale": stale_keys,
+        }, ensure_ascii=False))
+        return
     print(f"{board['project']['name']} [{board['project']['key']}]"
           + (f" — {board['project']['repo']}" if board["project"].get("repo") else ""))
     print(f"{len(issues)} issue(s)")
     for s in STATUSES:
         if by_status.get(s):
             print(f"  {s:<12} {by_status[s]}")
-    in_prog = [i for i in issues if i["status"] == "In Progress"]
     if in_prog:
         print("\nin progress:")
         for i in sorted(in_prog, key=_sort_key):
-            print(f"  {i['key']:<8} {i['title']}")
+            stale_note = f"  ⚠ stale {_stale_days(i)}d" if _is_stale(i) else ""
+            print(f"  {i['key']:<8} {i['title']}{stale_note}")
+
+
+def cmd_doctor(args):
+    """Read-only integrity scan of the board."""
+    board = load(args)
+    issues = board["issues"]
+    problems = []
+
+    def prob(code, key, message):
+        problems.append({"code": code, "key": key, "message": message})
+
+    by_key = {}
+    # Duplicate key check
+    for i in issues:
+        k = i.get("key")
+        if not k:
+            prob("missing_key", None, f"issue is missing a 'key' field: {i.get('title', '?')!r}")
+            continue
+        if k in by_key:
+            prob("duplicate_key", k, f"duplicate key {k!r}")
+        else:
+            by_key[k] = i
+
+    # Missing required fields
+    for i in issues:
+        k = i.get("key", "?")
+        for field in ("title", "type", "status"):
+            if not i.get(field):
+                prob("missing_field", k, f"{k}: missing required field {field!r}")
+
+    # Status/type/priority validity
+    board_statuses = set(board.get("statuses", STATUSES))
+    board_types = set(board.get("types", TYPES))
+    board_priorities = set(board.get("priorities", PRIORITIES))
+    for i in issues:
+        k = i.get("key", "?")
+        if i.get("status") and i["status"] not in board_statuses:
+            prob("invalid_status", k, f"{k}: unknown status {i['status']!r}")
+        if i.get("type") and i["type"] not in board_types:
+            prob("invalid_type", k, f"{k}: unknown type {i['type']!r}")
+        if i.get("priority") and i["priority"] not in board_priorities:
+            prob("invalid_priority", k, f"{k}: unknown priority {i['priority']!r}")
+
+    # Dangling parent references + parent cycles
+    for i in issues:
+        k = i.get("key", "?")
+        parent = i.get("parent")
+        if parent and parent not in by_key:
+            prob("dangling_parent", k, f"{k}: parent {parent!r} does not exist")
+    # Cycle in parent chain (DFS)
+    def _parent_cycle(start_key):
+        visited, cur = set(), start_key
+        while cur:
+            if cur in visited:
+                return True
+            visited.add(cur)
+            cur = by_key.get(cur, {}).get("parent")
+        return False
+    for i in issues:
+        k = i.get("key", "?")
+        if k in by_key and _parent_cycle(k):
+            prob("parent_cycle", k, f"{k}: parent chain forms a cycle")
+
+    # Dangling blocked_by references + blocked_by cycles
+    for i in issues:
+        k = i.get("key", "?")
+        for blk in i.get("blocked_by", []):
+            if blk not in by_key:
+                prob("dangling_blocked_by", k, f"{k}: blocked_by {blk!r} does not exist")
+    # Cycle in blocked_by graph (DFS from each node)
+    def _blocked_by_cycle(start_key):
+        visited, stack = set(), [start_key]
+        while stack:
+            cur = stack.pop()
+            if cur in visited:
+                return True
+            visited.add(cur)
+            for nxt in by_key.get(cur, {}).get("blocked_by", []):
+                stack.append(nxt)
+        return False
+    for i in issues:
+        k = i.get("key", "?")
+        if k in by_key and _blocked_by_cycle(k):
+            prob("blocked_by_cycle", k, f"{k}: blocked_by graph forms a cycle")
+
+    # Counter drift
+    counter = board.get("project", {}).get("counter", 0)
+    prefix = board.get("project", {}).get("key", "")
+    max_suffix = 0
+    for k in by_key:
+        if k.startswith(prefix + "-"):
+            try:
+                max_suffix = max(max_suffix, int(k[len(prefix) + 1:]))
+            except ValueError:
+                pass
+    if max_suffix > counter:
+        prob("counter_drift", None,
+             f"counter={counter} but max issue suffix is {max_suffix}")
+
+    # Unparseable timestamps
+    for i in issues:
+        k = i.get("key", "?")
+        for field in ("created", "updated"):
+            val = i.get(field)
+            if val:
+                try:
+                    _dt.datetime.fromisoformat(val)
+                except ValueError:
+                    prob("bad_timestamp", k, f"{k}: {field}={val!r} is not valid ISO-8601")
+        for c in i.get("comments", []):
+            val = c.get("at")
+            if val:
+                try:
+                    _dt.datetime.fromisoformat(val)
+                except ValueError:
+                    prob("bad_timestamp", k, f"{k}: comment timestamp {val!r} is not valid ISO-8601")
+
+    if getattr(args, "json", False):
+        print(json.dumps({"problems": problems}, ensure_ascii=False))
+        sys.exit(1 if problems else 0)
+
+    if not problems:
+        print("board is healthy")
+        sys.exit(0)
+
+    for p in problems:
+        key_part = f"[{p['key']}] " if p["key"] else ""
+        print(f"  {p['code']}: {key_part}{p['message']}")
+    print(f"\n{len(problems)} problem(s) found")
+    sys.exit(1)
+
+
+def _blocked_by_has_cycle_adding(by_key, from_key, to_key) -> bool:
+    """Return True if adding `to_key` to `from_key`'s blocked_by would create a cycle.
+
+    A cycle exists if `from_key` is reachable from `to_key` following blocked_by edges
+    (i.e., to_key → … → from_key).
+    """
+    visited, stack = set(), [to_key]
+    while stack:
+        cur = stack.pop()
+        if cur == from_key:
+            return True
+        if cur in visited:
+            continue
+        visited.add(cur)
+        for nxt in by_key.get(cur, {}).get("blocked_by", []):
+            stack.append(nxt)
+    return False
+
+
+def cmd_link(args):
+    p = board_path(args)
+    with board_lock(p):
+        board = load(args)
+        by_key = {i["key"]: i for i in board["issues"]}
+        issue = find(board, args.key)
+        key = issue["key"]
+
+        if args.blocked_by:
+            other_key = find(board, args.blocked_by)["key"]
+            if other_key == key:
+                die(f"an issue cannot block itself ({key})")
+            # Cycle check: does adding key blocked_by other_key create a cycle?
+            if _blocked_by_has_cycle_adding(by_key, key, other_key):
+                die(f"adding {other_key} to {key}'s blocked_by would create a cycle")
+            current = issue.setdefault("blocked_by", [])
+            if other_key not in current:
+                current.append(other_key)
+                current.sort()
+            issue["updated"] = now()
+            save(board, args)
+            print(f"{key}: now blocked by {other_key}")
+
+        elif args.unblock:
+            other_key = find(board, args.unblock)["key"]
+            current = issue.get("blocked_by", [])
+            if other_key not in current:
+                die(f"{other_key} is not in {key}'s blocked_by list")
+            current.remove(other_key)
+            issue["updated"] = now()
+            save(board, args)
+            print(f"{key}: unblocked from {other_key}")
 
 
 def cmd_render(args):
@@ -871,9 +1130,11 @@ render();
 # --------------------------------------------------------------------------- #
 
 def build_parser():
-    # common parent carries --file so every subparser accepts it too (JT-32e)
+    # common parent carries --file and --json so every subparser accepts them (JT-32e, JT-36)
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--file", help=f"path to board json (default: {DEFAULT_FILE})")
+    common.add_argument("--json", action="store_true", dest="json",
+                        help="emit compact JSON to stdout instead of human-readable output")
 
     p = argparse.ArgumentParser(prog="jira.py", description="Tiny Jira-style work tracker (JSON + HTML).",
                                 parents=[common])
@@ -923,6 +1184,16 @@ def build_parser():
 
     s = sub.add_parser("status", help="board summary", parents=[common])
     s.set_defaults(func=cmd_status)
+
+    s = sub.add_parser("doctor", help="integrity scan of the board", parents=[common])
+    s.set_defaults(func=cmd_doctor)
+
+    s = sub.add_parser("link", help="manage blocked-by relationships", parents=[common])
+    s.add_argument("key", help="issue key to link")
+    g = s.add_mutually_exclusive_group(required=True)
+    g.add_argument("--blocked-by", metavar="OTHER", help="mark KEY as blocked by OTHER")
+    g.add_argument("--unblock", metavar="OTHER", help="remove OTHER from KEY's blocked_by")
+    s.set_defaults(func=cmd_link)
 
     s = sub.add_parser("render", help="regenerate board.html from board.json", parents=[common])
     s.set_defaults(func=cmd_render)
