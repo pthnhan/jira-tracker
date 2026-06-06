@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-06T14:22:07+07:00",
+    "updated": "2026-06-06T14:39:23+07:00",
     "counter": 40
   },
   "types": [
@@ -109,14 +109,14 @@
       "type": "Epic",
       "title": "Hardening: fixes from 2026-06-04 code review",
       "description": "Seven confirmed bugs (each reproduced via CLI) plus test coverage and packaging-sync work.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": null,
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:17+07:00",
-      "updated": "2026-06-06T10:28:11+07:00",
+      "updated": "2026-06-06T14:39:23+07:00",
       "comments": [
         {
           "author": "agent",
@@ -137,6 +137,11 @@
           "author": "agent",
           "at": "2026-06-06T10:28:11+07:00",
           "body": "Incident follow-up closed: user synced the global skill copy per README install steps (cp -R .claude/skills/jira-tracker ~/.claude/skills/). Verified: dirs byte-identical (852-line jira.py), and a render through the global path now produces the redesigned template (12/12 markers, board.html diff vs HEAD remains data-only)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:39:23+07:00",
+          "body": "Hardening epic complete: all 2026-06-04 and 2026-06-06 review findings shipped — JT-20..34 (delegation/a11y/contrast/dynamic CSS/epic semantics/hash state/locking/escaping/guards/version stamp/docs/artifact sync) all Done. Final whole-diff review: zero critical/important findings, 130+ tests green, mirrors byte-identical."
         }
       ]
     },
@@ -358,19 +363,24 @@
       "type": "Task",
       "title": "Sync mechanism + drift check for .claude/.codex/global installs",
       "description": "Installed ~/.claude copy found stale vs repo (missing 4430ba0). Add make sync/install + a test asserting the two in-repo trees are identical.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:18+07:00",
-      "updated": "2026-06-04T15:47:39+07:00",
+      "updated": "2026-06-06T14:39:23+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-04T15:47:39+07:00",
           "body": "Half done: test_claude_and_codex_trees_in_sync now enforces byte-identical shared files across both trees. Remaining: make sync/install convenience targets. Global ~/.claude install refreshed manually on 2026-06-04."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:39:23+07:00",
+          "body": "Delivered across this session: TEMPLATE_VERSION stamp + newer-board refusal (JT-34) guards stale-CLI drift at runtime; mirror byte-equality tests + artifact-sync test (JT-25) catch .claude/.codex drift in CI; global ~/.claude copy synced and verified byte-identical (Task F). Remaining global-install drift is covered by the runtime version guard since tests cannot reach outside the repo."
         }
       ]
     },
@@ -401,12 +411,17 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:18+07:00",
-      "updated": "2026-06-06T01:32:21+07:00",
+      "updated": "2026-06-06T14:39:23+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T01:32:21+07:00",
           "body": "Partially delivered by JT-19: the By-Epic x/y-done progress rollup is live in the redesigned board. Remaining scope: next/status calling out In Review items, and a CLI command to edit project fields after init."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:39:23+07:00",
+          "body": "Partial overlap shipped in the v2 template work: per-epic progress rollup now exists (transitive done/total bar with overall-progress tooltip, JT-21/22). Remaining scope to evaluate: any further In-Review surfacing beyond the column + stats chips."
         }
       ]
     },
@@ -638,7 +653,7 @@
       "type": "Task",
       "title": "Add artifact regeneration-sync test for committed board.html files",
       "description": "No test regenerates and diffs the committed examples/board.html / .jira/board.html against current jira.py output (tests only assert on temp-dir renders), yet README points users at examples/board.html. Verified in sync today; add a test rendering examples/sample-board.json and diffing against the committed artifact so template edits can't ship stale examples.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -650,12 +665,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:16+07:00",
-      "updated": "2026-06-06T14:22:07+07:00",
+      "updated": "2026-06-06T14:30:33+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T14:22:07+07:00",
           "body": "Task F starting: artifact regeneration-sync test, regenerate artifacts with final template, sync .codex + global mirrors."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:30:33+07:00",
+          "body": "TestArtifactSync pins examples/board.html to the current template (byte-equality, render-is-read-only assertion); artifacts regenerated with template v2; .codex + global ~/.claude mirrors verified byte-identical. Commit cd889a2."
         }
       ]
     },
@@ -917,7 +937,7 @@
       "type": "Epic",
       "title": "Board v2 enhancements",
       "description": "Top-5 enhancements from the 2026-06-06 review ideation: machine-readable output, integrity doctor, dependency links, relative times, stale-WIP detection.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": null,
       "labels": [
@@ -926,8 +946,14 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T14:39:23+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:39:23+07:00",
+          "body": "Board v2 enhancements epic complete: --json (JT-36), doctor (JT-37), blocked-by links incl. drawer chips (JT-38), relative times (JT-39), stale-WIP detection (JT-40) all shipped."
+        }
+      ]
     },
     {
       "key": "JT-36",
