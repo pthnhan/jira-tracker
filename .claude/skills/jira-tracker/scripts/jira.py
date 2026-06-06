@@ -725,6 +725,39 @@ def cmd_render(args):
 # HTML rendering
 # --------------------------------------------------------------------------- #
 
+# Canonical statuses map to the theme palette vars (which adapt per light/dark).
+CANONICAL_STATUS_VAR = {
+    "To Do": "var(--todo)",
+    "In Progress": "var(--prog)",
+    "In Review": "var(--review)",
+    "Done": "var(--done)",
+    "Cancelled": "var(--cancel)",
+}
+# Deterministic fallback hues (8) for any non-canonical status a board may carry,
+# so a hand-added 6th status gets a distinct colour instead of the grey --muted
+# fallback.  Cycled by appearance order; chosen to read on both themes.
+FALLBACK_STATUS_HUES = [
+    "#d6336c", "#1098ad", "#f08c00", "#7048e8",
+    "#0ca678", "#e8590c", "#4263eb", "#ae3ec9",
+]
+
+
+def status_color_map(statuses) -> dict:
+    """Map every board status to a CSS colour string.
+
+    Canonical names keep their theme palette var; unknown statuses are assigned
+    a distinct, deterministic fallback hue by the order in which they appear."""
+    out = {}
+    fb_i = 0
+    for s in statuses:
+        if s in CANONICAL_STATUS_VAR:
+            out[s] = CANONICAL_STATUS_VAR[s]
+        else:
+            out[s] = FALLBACK_STATUS_HUES[fb_i % len(FALLBACK_STATUS_HUES)]
+            fb_i += 1
+    return out
+
+
 def render_html(board: dict, out_path: Path):
     data_json = (
         json.dumps(board, ensure_ascii=False)
@@ -732,7 +765,15 @@ def render_html(board: dict, out_path: Path):
         .replace(" ", "\\u2028")
         .replace(" ", "\\u2029")
     )
-    html_doc = HTML_TEMPLATE.replace("__BOARD_DATA__", data_json)
+    statuses = board.get("statuses", STATUSES)
+    ncols = max(1, len(statuses))
+    scolor_json = json.dumps(status_color_map(statuses), ensure_ascii=False).replace("</", "<\\/")
+    html_doc = (
+        HTML_TEMPLATE
+        .replace("__BOARD_DATA__", data_json)
+        .replace("__STATUS_COLOR_JSON__", scolor_json)
+        .replace("__NCOLS__", str(ncols))
+    )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_atomic(out_path, html_doc)
 
@@ -759,15 +800,16 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
 <style>
   :root,:root[data-theme="dark"]{
     --bg:#0b0d12; --panel:#11141a; --card:#171b23; --line:#232833; --line-2:#2e3645;
-    --ink:#e8eaf0; --muted:#9aa3b5; --faint:#5b6778;
+    --ink:#e8eaf0; --muted:#9aa3b5; --faint:#808da2;
     --brand-a:#7c6cf0; --brand-b:#4f9cf7;
+    --focus:#6ea8ff;
     --key-bg:#7ee787; --key-ink:#0b0d12;
     --scrim:rgba(4,6,10,.45);
     --shadow:0 1px 3px rgba(0,0,0,.35);
     --shadow-hover:0 8px 20px rgba(0,0,0,.45);
     --shadow-drawer:-16px 0 48px rgba(0,0,0,.5);
     --glow-a:rgba(124,108,240,.10); --glow-b:rgba(79,156,247,.07);
-    --todo:#8b93a7; --prog:#d29922; --review:#58a6ff; --done:#3fb950; --cancel:#a07878;
+    --todo:#8b93a7; --prog:#d29922; --review:#58a6ff; --done:#3fb950; --cancel:#b08585;
     --epic:#a371f7; --story:#3fb950; --task:#58a6ff; --bug:#f85149; --sub:#8b93a7;
     --pri-highest:#f85149; --pri-high:#f0883e; --pri-medium:#d29922; --pri-low:#3fb950; --pri-lowest:#8b93a7;
     --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -776,17 +818,18 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   }
   :root[data-theme="light"]{
     --bg:#f6f7f9; --panel:#eceef2; --card:#ffffff; --line:#e3e7ee; --line-2:#d3dae4;
-    --ink:#1f2733; --muted:#5b6678; --faint:#94a0b1;
+    --ink:#1f2733; --muted:#5b6678; --faint:#677386;
     --brand-a:#7c3aed; --brand-b:#2563eb;
+    --focus:#1d4ed8;
     --key-bg:#16a34a; --key-ink:#ffffff;
     --scrim:rgba(15,23,42,.28);
     --shadow:0 1px 2px rgba(16,24,40,.07);
     --shadow-hover:0 8px 20px rgba(16,24,40,.12);
     --shadow-drawer:-16px 0 48px rgba(16,24,40,.18);
     --glow-a:rgba(124,58,237,.05); --glow-b:rgba(37,99,235,.04);
-    --todo:#64748b; --prog:#b45309; --review:#2563eb; --done:#16a34a; --cancel:#9f6b6b;
-    --epic:#7c3aed; --story:#16a34a; --task:#2563eb; --bug:#dc2626; --sub:#64748b;
-    --pri-highest:#dc2626; --pri-high:#ea580c; --pri-medium:#b45309; --pri-low:#16a34a; --pri-lowest:#64748b;
+    --todo:#64748b; --prog:#b45309; --review:#2563eb; --done:#0f7a37; --cancel:#8a5757;
+    --epic:#7c3aed; --story:#0f7a37; --task:#2563eb; --bug:#dc2626; --sub:#64748b;
+    --pri-highest:#dc2626; --pri-high:#c2410c; --pri-medium:#b45309; --pri-low:#0f7a37; --pri-lowest:#64748b;
     color-scheme:light;
   }
   *{box-sizing:border-box}
@@ -796,6 +839,13 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
     background-repeat:no-repeat}
   a{color:inherit}
   button{font-family:inherit}
+  /* Visible keyboard-focus ring on every interactive element (JT-28). Uses the
+     theme --focus var so it reads on both palettes; mouse focus stays quiet. */
+  :focus{outline:none}
+  .card:focus-visible,.row:focus-visible,.epic-head:focus-visible,a:focus-visible,
+  button:focus-visible,select:focus-visible,input:focus-visible,[data-key]:focus-visible,
+  [tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px;
+    border-radius:8px}
 
   /* header (scrolls away) */
   header{padding:26px 28px 14px}
@@ -823,7 +873,10 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
     -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--shadow)}
   .toolbar .mini{display:none}
   .toolbar.stuck .mini{display:inline-block}
-  .mini-stats{margin-left:auto;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  /* #ministats owns its own visibility (JT-23 cleanup): hidden by default,
+     shown as inline-flex only when the toolbar is stuck — no reliance on
+     source order against the generic .mini rule. */
+  .mini-stats{display:none;margin-left:auto;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--muted)}
   .toolbar.stuck .mini-stats{display:inline-flex}
   .mini-stats .ms{display:inline-flex;align-items:center;gap:4px}
   .mini-stats .ms b{color:var(--ink);font-weight:700}
@@ -838,7 +891,7 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   select:hover,input[type="search"]:hover{border-color:var(--line-2)}
   select:focus,input[type="search"]:focus{border-color:var(--brand-b)}
   select{cursor:pointer;max-width:250px}
-  input[type="search"]{width:190px}
+  input[type="search"]{flex:1;min-width:160px;max-width:320px}
   input[type="search"]::placeholder{color:var(--faint)}
   .clear-btn{background:transparent;border:0;color:var(--muted);font-size:12px;cursor:pointer;
     text-decoration:underline dotted;padding:6px 4px}
@@ -849,9 +902,12 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
 
   main{padding:16px 28px 80px}
 
-  /* board view */
-  .cols{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:14px;align-items:start}
-  @media(max-width:1100px){.cols{grid-template-columns:repeat(2,1fr)}}
+  /* board view — column count is data-driven (JT-24): --ncols is the number of
+     statuses on the board.  auto-fill capped at --ncols never overflows (kills the
+     old 1100-1200px horizontal-scroll gap) and wraps responsively as width shrinks. */
+  .cols{display:grid;gap:14px;align-items:start;--ncols:__NCOLS__;--col-min:220px;
+    grid-template-columns:repeat(auto-fill,minmax(
+      min(100%, max(var(--col-min), calc((100% - (var(--ncols) - 1)*14px)/var(--ncols)))),1fr))}
   @media(max-width:640px){.cols{grid-template-columns:1fr}}
   .col{background:var(--panel);border:1px solid var(--line);border-radius:14px;min-height:80px}
   .col h2{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.07em;
@@ -867,7 +923,7 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   .card .top{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px}
   .ttype{font-family:var(--mono);font-size:9.5px;font-weight:700;text-transform:uppercase;
     letter-spacing:.05em;padding:2px 7px;border-radius:5px;white-space:nowrap}
-  .ckey{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .ckey{font-family:var(--mono);font-size:11px;color:var(--muted)}
   .card .title{font-size:13.5px;line-height:1.4;font-weight:600;overflow-wrap:break-word}
   .card .meta{display:flex;gap:8px;align-items:center;margin-top:9px;flex-wrap:wrap}
   .pri{font-family:var(--mono);font-size:10px;display:flex;align-items:center;gap:4px}
@@ -887,7 +943,7 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   .prog{display:flex;align-items:center;gap:8px;margin-left:auto}
   .prog-bar{width:90px;height:4px;border-radius:999px;background:var(--line);overflow:hidden}
   .prog-bar i{display:block;height:100%;background:var(--done);border-radius:999px}
-  .prog-n{font-family:var(--mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .prog-n{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap}
   .pill{font-family:var(--mono);font-size:10px;padding:2px 9px;border-radius:999px;
     white-space:nowrap;font-weight:700}
   .epic-body{padding:6px 12px 12px;display:flex;flex-direction:column;gap:7px}
@@ -926,9 +982,39 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
     margin-bottom:8px}
   .cmt .h{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-bottom:4px}
   .cmt .b{font-size:13px;line-height:1.55;color:var(--muted);white-space:pre-wrap;overflow-wrap:break-word}
+  /* links auto-detected in description / comment bodies (JT-33) */
+  .d-desc a,.cmt .b a{color:var(--review);text-decoration:underline}
+
+  /* blocked-by (JT-38) — drawer chips + a compact card/row indicator */
+  .blk-row{display:flex;gap:6px;flex-wrap:wrap}
+  .blk-chip{font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 9px;
+    border-radius:999px;white-space:nowrap;cursor:pointer}
+  .blk-ind{display:inline-flex;align-items:center;font-size:11px;line-height:1;color:var(--bug);
+    cursor:help}
 
   footer{padding:20px 28px;color:var(--faint);font-family:var(--mono);font-size:11px;
     border-top:1px solid var(--line)}
+
+  /* Reduced motion (JT-33): kill transitions/animations and hover lifts. */
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+    .card:hover,.row:hover{transform:none!important}
+  }
+
+  /* Print (JT-33): force the light palette, drop chrome/overlays, let the board
+     reflow and keep cards intact across page breaks; no background gradients. */
+  @media print{
+    :root,:root[data-theme="dark"],:root[data-theme="light"]{
+      --bg:#fff; --panel:#fff; --card:#fff; --line:#ccc; --line-2:#bbb;
+      --ink:#111; --muted:#333; --faint:#555; color-scheme:light}
+    body{background:#fff!important;background-image:none!important}
+    .toolbar{position:static!important;display:none!important}
+    .theme-btn,.seg,select,input[type="search"],.clear-btn,.mini-stats,#sentinel{display:none!important}
+    .scrim,.drawer{display:none!important}
+    .cols{grid-template-columns:repeat(2,1fr)!important}
+    .card,.row,.epic-group{break-inside:avoid;page-break-inside:avoid;box-shadow:none!important}
+    a{text-decoration:underline}
+  }
 </style>
 </head>
 <body>
@@ -954,7 +1040,7 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   <select id="fpri" title="filter by priority"></select>
   <input id="fsearch" type="search" placeholder="search key or title…" title="search by key or title">
   <button class="clear-btn" id="fclear" hidden>✕ clear</button>
-  <span class="mini-stats mini" id="ministats"></span>
+  <span class="mini-stats" id="ministats"></span>
   <button class="theme-btn" id="ftheme" title="toggle light/dark theme">🌙</button>
 </nav>
 
@@ -962,21 +1048,46 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
 <footer id="foot"></footer>
 
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-hidden="true"></aside>
 
 <script id="board-data" type="application/json">__BOARD_DATA__</script>
 <script>
 const BOARD=JSON.parse(document.getElementById('board-data').textContent);
 const STATUSES=BOARD.statuses, PRIORITIES=BOARD.priorities;
 const TYPE_COLOR={Epic:'var(--epic)',Story:'var(--story)',Task:'var(--task)',Bug:'var(--bug)','Sub-task':'var(--sub)'};
-const STATUS_COLOR={'To Do':'var(--todo)','In Progress':'var(--prog)','In Review':'var(--review)','Done':'var(--done)','Cancelled':'var(--cancel)'};
+// STATUS_COLOR is generated by Python (JT-24): canonical statuses map to theme
+// palette vars; any non-canonical status gets a distinct deterministic hue.
+const STATUS_COLOR=__STATUS_COLOR_JSON__;
 const PRI_COLOR={Highest:'var(--pri-highest)',High:'var(--pri-high)',Medium:'var(--pri-medium)',Low:'var(--pri-low)',Lowest:'var(--pri-lowest)'};
+const CLOSED=new Set(['Done','Cancelled']);
 const tcol=t=>TYPE_COLOR[t]||'var(--muted)';
 const scol=s=>STATUS_COLOR[s]||'var(--muted)';
 const pcol=p=>PRI_COLOR[p]||'var(--muted)';
 const tint=(c,p)=>`color-mix(in srgb, ${c} ${p}%, transparent)`;
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const trunc=(s,n)=>{s=s==null?'':String(s);return s.length>n?s.slice(0,n-1)+'…':s};
+// Relative time (JT-39): "just now" / "Nm/h/d/w ago", date for >8 weeks.
+function rel(ts){
+  if(!ts)return '';
+  const t=Date.parse(ts); if(isNaN(t))return esc(ts);
+  let s=Math.floor((Date.now()-t)/1000); if(s<0)s=0;
+  const m=Math.floor(s/60),h=Math.floor(s/3600),d=Math.floor(s/86400),w=Math.floor(s/604800);
+  if(s<45)return 'just now';
+  if(m<60)return m+'m ago';
+  if(h<24)return h+'h ago';
+  if(d<7)return d+'d ago';
+  if(w<=8)return w+'w ago';
+  try{return new Date(t).toISOString().slice(0,10);}catch(e){return esc(ts);}
+}
+// A relative-time element that exposes the full ISO stamp on hover.
+const relSpan=ts=>`<span title="${esc(ts)}">${esc(rel(ts))}</span>`;
+// Linkify http(s) URLs in ALREADY-ESCAPED text (JT-33). Run AFTER esc() so the
+// surrounding body stays escaped and only real URLs become anchors.
+function linkify(escaped){
+  return escaped.replace(/https?:\/\/[^\s<]+/g,u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+}
+// Open blockers of an issue (blocker exists and is not Done/Cancelled).
+const openBlockers=i=>(i.blocked_by||[]).filter(k=>byKey.has(k)&&!CLOSED.has(byKey.get(k).status));
 let view='board', fEpic='', fType='', fPri='', q='', openKey='';
 
 // Transitive epic membership, rebuilt once per render pass (JT-22).
@@ -1041,8 +1152,9 @@ function header(){
   // Condensed per-status strip shown only when the toolbar is stuck (JT-23).
   document.getElementById('ministats').innerHTML=
     STATUSES.filter(s=>counts[s]).map(s=>`<span class="ms" title="${esc(s)}"><span class="dot" style="background:${scol(s)}"></span><b>${counts[s]}</b></span>`).join('');
-  document.getElementById('foot').textContent=
-    `source: .jira/board.json · regenerate with: python jira.py render · updated ${p.updated}`;
+  // Footer "generated" line uses a relative time with the full ISO on hover (JT-39).
+  document.getElementById('foot').innerHTML=
+    `source: .jira/board.json · regenerate with: python jira.py render · generated ${relSpan(p.updated)}`;
 }
 function setOpts(id,opts,cur){
   document.getElementById(id).innerHTML=opts.map(o=>
@@ -1072,18 +1184,25 @@ function clearFilters(){
 const noMatch=()=>`<div class="empty">No issues match the current filters. <a href="#" data-action="clear">Clear filters</a></div>`;
 const noIssues=()=>`<div class="empty">No issues yet. Create one with: python jira.py add --type Task --title "..."</div>`;
 
+// Blocked indicator (JT-38): shown only when an issue has >=1 OPEN blocker.
+function blockedInd(i){
+  const open=openBlockers(i);
+  if(!open.length)return '';
+  return `<span class="blk-ind" title="Blocked by ${esc(open.join(', '))}" aria-label="blocked">⛔</span>`;
+}
 function cardHTML(i){
   const labels=(i.labels||[]).map(l=>`<span class="chip">${esc(l)}</span>`).join('');
   const cc=(i.comments&&i.comments.length)?`<span class="cc">💬 ${i.comments.length}</span>`:'';
+  const upd=i.updated?`<span class="cc">${relSpan(i.updated)}</span>`:'';
   return `<div class="card" style="--tc:${tcol(i.type)}" data-key="${esc(i.key)}" tabindex="0" role="button" aria-label="${esc(i.key)}: ${esc(i.title)}">
     <div class="top">
-      <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
-      <span class="ckey">${esc(i.key)}</span>
+      <span class="ttype" style="background:${tint(tcol(i.type),24)};color:${tcol(i.type)}">${esc(i.type)}</span>
+      <span class="ckey">${blockedInd(i)}${esc(i.key)}</span>
     </div>
     <div class="title">${esc(i.title)}</div>
     <div class="meta">
       <span class="pri" style="color:${pcol(i.priority)}"><span class="pbar" style="background:${pcol(i.priority)}"></span>${esc(i.priority)}</span>
-      ${labels}${cc}
+      ${labels}${cc}${upd}
     </div></div>`;
 }
 function renderBoard(){
@@ -1098,11 +1217,11 @@ function renderBoard(){
 }
 function rowHTML(i){
   return `<div class="row" data-key="${esc(i.key)}" tabindex="0" role="button" aria-label="${esc(i.key)}: ${esc(i.title)}">
-    <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
-    <span class="ckey">${esc(i.key)}</span>
+    <span class="ttype" style="background:${tint(tcol(i.type),24)};color:${tcol(i.type)}">${esc(i.type)}</span>
+    <span class="ckey">${blockedInd(i)}${esc(i.key)}</span>
     <span class="title">${esc(i.title)}</span>
     <span class="pri" style="color:${pcol(i.priority)}"><span class="pbar" style="background:${pcol(i.priority)}"></span>${esc(i.priority)}</span>
-    <span class="pill" style="background:${tint(scol(i.status),14)};color:${scol(i.status)}">${esc(i.status)}</span></div>`;
+    <span class="pill" style="background:${tint(scol(i.status),24)};color:${scol(i.status)}">${esc(i.status)}</span></div>`;
 }
 function renderEpics(){
   if(!BOARD.issues.length){document.getElementById('main').innerHTML=noIssues();return;}
@@ -1123,10 +1242,10 @@ function renderEpics(){
     const body=kids.length?kids.map(rowHTML).join('')
       :(childFilter?'<div class="note">no matching issues</div>':'<div class="note">no issues yet</div>');
     html+=`<section class="epic-group"><div class="epic-head" data-key="${esc(e.key)}">
-      <span class="ttype" style="background:${tint(tcol('Epic'),14)};color:${tcol('Epic')}">Epic</span>
+      <span class="ttype" style="background:${tint(tcol('Epic'),24)};color:${tcol('Epic')}">Epic</span>
       <span class="ckey">${esc(e.key)}</span><span class="title">${esc(e.title)}</span>
       <span class="prog" title="overall progress, ignores filters"><span class="prog-bar"><i style="width:${pct}%"></i></span><span class="prog-n">${done}/${membersAll.length} done</span></span>
-      <span class="pill" style="background:${tint(scol(e.status),14)};color:${scol(e.status)}">${esc(e.status)}</span></div>
+      <span class="pill" style="background:${tint(scol(e.status),24)};color:${scol(e.status)}">${esc(e.status)}</span></div>
       <div class="epic-body">${body}</div></section>`;
   });
   if(!fEpic||fEpic==='__none__'){
@@ -1139,46 +1258,82 @@ function renderEpics(){
 }
 function render(){buildEpicIndex();header();fillFilters();view==='board'?renderBoard():renderEpics();syncHash();}
 
+// Element that had focus before the drawer opened, restored on close (JT-28).
+// openerKey remembers which issue card opened it, for a fallback after re-render.
+let drawerOpener=null, openerKey='';
+const FOCUSABLE='a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])';
+const cssEsc=s=>(window.CSS&&window.CSS.escape)?window.CSS.escape(s):String(s).replace(/["\\]/g,'\\$&');
 function openIssue(key){
   const i=BOARD.issues.find(x=>x.key===key);if(!i)return;
+  // Remember the opener so focus can be restored on close.
+  drawerOpener=(document.activeElement&&document.activeElement!==document.body)?document.activeElement:null;
+  openerKey=key;
   openKey=key;
   const d=document.getElementById('drawer');
   const par=i.parent?BOARD.issues.find(x=>x.key===i.parent):null;
   const parentCell=par
     ?`<a class="plink" href="#${esc(par.key)}" data-key="${esc(par.key)}">${esc(par.key)} · ${esc(trunc(par.title,30))}</a>`
     :esc(i.parent||'—');
+  // Blocked-by chips (JT-38): each blocker is a clickable chip styled by its status.
+  const blk=(i.blocked_by||[]).map(k=>{
+    const b=byKey.get(k);const st=b?b.status:'?';const c=scol(st);
+    return `<span class="blk-chip" data-key="${esc(k)}" style="background:${tint(c,24)};color:${c}" title="${esc(k)} (${esc(st)})">${esc(k)} (${esc(st)})</span>`;
+  }).join('');
   const rows=[
     ['Parent',parentCell],
     ['Assignee',esc(i.assignee||'—')],
     ['Labels',(i.labels||[]).map(l=>`<span class="chip">${esc(l)}</span>`).join(' ')||'—'],
     ['Components',(i.components||[]).map(c=>`<span class="chip">${esc(c)}</span>`).join(' ')||'—'],
-    ['Created',esc(i.created||'—')],
-    ['Updated',esc(i.updated||'—')]
+    ['Created',i.created?relSpan(i.created):'—'],
+    ['Updated',i.updated?relSpan(i.updated):'—']
   ];
   d.innerHTML=`<div class="d-head">
-      <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
+      <span class="ttype" style="background:${tint(tcol(i.type),24)};color:${tcol(i.type)}">${esc(i.type)}</span>
       <span class="ckey">${esc(i.key)}</span>
-      <button class="x" data-action="close" title="close">✕</button>
+      <button class="x" data-action="close" title="close" aria-label="close">✕</button>
     </div>
-    <h2 class="d-title">${esc(i.title)}</h2>
+    <h2 class="d-title" id="d-title">${esc(i.title)}</h2>
     <div class="d-pills">
-      <span class="pill" style="background:${tint(scol(i.status),14)};color:${scol(i.status)}">${esc(i.status)}</span>
-      <span class="pill" style="border:1px solid ${tint(pcol(i.priority),50)};color:${pcol(i.priority)}">${esc(i.priority)}</span>
+      <span class="pill" style="background:${tint(scol(i.status),24)};color:${scol(i.status)}">${esc(i.status)}</span>
+      <span class="pill" style="background:${tint(pcol(i.priority),24)};color:${pcol(i.priority)}">${esc(i.priority)}</span>
     </div>
-    ${i.description?`<div class="d-sec">Description</div><div class="d-desc">${esc(i.description)}</div>`:''}
+    ${blk?`<div class="d-sec">Blocked by</div><div class="blk-row">${blk}</div>`:''}
+    ${i.description?`<div class="d-sec">Description</div><div class="d-desc">${linkify(esc(i.description))}</div>`:''}
     <div class="d-sec">Details</div>
     <dl class="d-grid">${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
     ${(i.comments&&i.comments.length)?`<div class="d-sec">Comments (${i.comments.length})</div>`+
-      i.comments.map(c=>`<div class="cmt"><div class="h">${esc(c.author)} · ${esc(c.at)}</div><div class="b">${esc(c.body)}</div></div>`).join(''):''}`;
+      i.comments.map(c=>`<div class="cmt"><div class="h">${esc(c.author)} · ${relSpan(c.at)}</div><div class="b">${linkify(esc(c.body))}</div></div>`).join(''):''}`;
   document.getElementById('scrim').classList.add('on');
   d.classList.add('on');d.setAttribute('aria-hidden','false');d.scrollTop=0;
+  // Move focus into the dialog (the close button) so keyboard users land inside.
+  const x=d.querySelector('.x');if(x)x.focus();
   syncHash();
 }
-function closeDrawer(){
-  document.getElementById('scrim').classList.remove('on');
+// Confine Tab/Shift+Tab to the drawer's focusables while it is open (JT-28).
+function trapFocus(e){
+  if(e.key!=='Tab')return;
   const d=document.getElementById('drawer');
+  if(!d.classList.contains('on'))return;
+  const f=Array.from(d.querySelectorAll(FOCUSABLE)).filter(el=>el.offsetParent!==null||el===document.activeElement);
+  if(!f.length){e.preventDefault();return;}
+  const first=f[0],last=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+}
+function closeDrawer(){
+  const d=document.getElementById('drawer');
+  const wasOpen=d.classList.contains('on');
+  document.getElementById('scrim').classList.remove('on');
   d.classList.remove('on');d.setAttribute('aria-hidden','true');
   openKey='';
+  // Restore focus to the opener; if it's gone after a re-render, fall back to the
+  // matching card/row, then to the body (JT-28).
+  if(wasOpen){
+    let tgt=(drawerOpener&&document.body.contains(drawerOpener))?drawerOpener:null;
+    if(!tgt&&openerKey)tgt=document.querySelector(`[data-key="${cssEsc(openerKey)}"]`);
+    if(tgt&&tgt.focus)tgt.focus();else if(document.body.focus)document.body.focus();
+  }
+  drawerOpener=null;openerKey='';
   syncHash();
 }
 
@@ -1240,7 +1395,7 @@ document.body.addEventListener('keydown',e=>{
 });
 
 document.getElementById('scrim').addEventListener('click',closeDrawer);
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();else trapFocus(e);});
 document.getElementById('viewseg').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
   setView(b.dataset.view);
@@ -1253,13 +1408,24 @@ document.getElementById('fsearch').addEventListener('input',e=>{q=e.target.value
 document.getElementById('fclear').addEventListener('click',clearFilters);
 const themeBtn=document.getElementById('ftheme');
 function themeIcon(){themeBtn.textContent=document.documentElement.dataset.theme==='light'?'☀️':'🌙';}
+function applyTheme(t){document.documentElement.dataset.theme=(t==='light'?'light':'dark');themeIcon();}
 themeBtn.addEventListener('click',()=>{
   const next=document.documentElement.dataset.theme==='light'?'dark':'light';
-  document.documentElement.dataset.theme=next;
+  applyTheme(next);
   try{localStorage.setItem('jt-theme',next);}catch(err){}
-  themeIcon();
 });
 themeIcon();
+// Theme sync (JT-33): a theme picked in another tab updates this one immediately.
+window.addEventListener('storage',e=>{
+  if(e.key==='jt-theme'&&(e.newValue==='light'||e.newValue==='dark'))applyTheme(e.newValue);
+});
+// Follow OS light/dark changes ONLY when the user hasn't pinned a theme here.
+if(window.matchMedia){
+  const mq=matchMedia('(prefers-color-scheme: dark)');
+  const onOS=e=>{let pinned=null;try{pinned=localStorage.getItem('jt-theme');}catch(err){}
+    if(pinned!=='light'&&pinned!=='dark')applyTheme(e.matches?'dark':'light');};
+  if(mq.addEventListener)mq.addEventListener('change',onOS);else if(mq.addListener)mq.addListener(onOS);
+}
 new IntersectionObserver(es=>{
   document.getElementById('toolbar').classList.toggle('stuck',!es[0].isIntersecting);
 },{rootMargin:'-1px 0px 0px 0px'}).observe(document.getElementById('sentinel'));

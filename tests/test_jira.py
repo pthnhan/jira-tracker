@@ -276,6 +276,46 @@ class TestModernTemplate(BoardTestCase):
         self.assertIn('class="drawer"', html)
         self.assertIn("IntersectionObserver", html)
 
+    # ---- Task D: a11y / visual / polish markers (static, present on any board) ----
+    def test_drawer_is_a_labelled_modal_dialog(self):
+        html = self.html()
+        self.assertIn('role="dialog"', html)
+        self.assertIn('aria-modal="true"', html)
+        self.assertIn('aria-labelledby="d-title"', html)
+
+    def test_focus_visible_ring_present(self):
+        self.assertIn(":focus-visible", self.html())
+
+    def test_print_and_reduced_motion_media_queries(self):
+        html = self.html()
+        self.assertIn("@media print", html)
+        self.assertIn("prefers-reduced-motion", html)
+
+    def test_linkify_emits_safe_external_anchors(self):
+        # The linkify helper builds target=_blank rel=noopener anchors.
+        html = self.html()
+        self.assertIn("function linkify", html)
+        self.assertIn('rel="noopener"', html)
+        self.assertIn('target="_blank"', html)
+
+    def test_theme_sync_listeners_present(self):
+        html = self.html()
+        self.assertIn("'storage'", html)  # cross-tab theme sync
+        self.assertIn("prefers-color-scheme: dark", html)  # OS-change follow
+
+    def test_relative_time_function_present(self):
+        html = self.html()
+        self.assertIn("function rel(", html)
+        self.assertIn("just now", html)
+        self.assertIn("w ago", html)
+
+    def test_blocked_by_chip_marker_present(self):
+        self.assertIn("blk-chip", self.html())
+
+    def test_no_hardcoded_five_column_grid(self):
+        # JT-24: the grid must be data-driven, never a literal repeat(5,...).
+        self.assertNotIn("repeat(5", self.html())
+
 
 class TestTemplateInteraction(BoardTestCase):
     """Task C: event delegation, transitive epics, hash state, sticky stats.
@@ -354,6 +394,62 @@ class TestTemplateInteraction(BoardTestCase):
     # ---- existing invariant must stay green ----
     def test_no_raw_u2028_in_template(self):
         self.assertNotIn(" ", self.html())
+
+
+class TestDynamicStatusCss(BoardTestCase):
+    """JT-24: column count and per-status colours are generated from the board.
+
+    A hand-edited board with a 6th status must get a 6-column-capable grid and a
+    distinct colour for the new status (not the grey --muted fallback)."""
+
+    def _write_board(self, board):
+        p = self.dir / ".jira/board.json"
+        p.write_text(json.dumps(board, indent=2) + "\n")
+
+    def _render(self):
+        # Render straight from the hand-edited JSON via `render --file`.
+        r = run(["render", "--file", str(self.dir / ".jira/board.json")], self.dir)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        return (self.dir / ".jira/board.html").read_text()
+
+    def test_six_statuses_get_six_columns_and_distinct_color(self):
+        board = json.loads((self.dir / ".jira/board.json").read_text())
+        board["statuses"] = ["To Do", "In Progress", "In Review",
+                             "Blocked", "Done", "Cancelled"]
+        self._write_board(board)
+        html = self._render()
+        # (a) column count is data-driven to 6 (injected count), never repeat(5,...)
+        self.assertNotIn("repeat(5", html)
+        self.assertIn("--ncols:6", html)
+        # (b) the 6th status got a concrete distinct hue, not the grey fallback
+        self.assertIn('"Blocked": "#', html)
+        self.assertNotIn('"Blocked": "var(--muted)"', html)
+        # canonical statuses still ride the theme palette vars
+        self.assertIn('"To Do": "var(--todo)"', html)
+
+    def test_grid_is_autofill_capable_no_literal_five(self):
+        # Even the default 5-status board must not hardcode repeat(5,...).
+        html = (self.dir / ".jira/board.html").read_text()
+        self.assertNotIn("repeat(5", html)
+        self.assertIn("auto-fill", html)
+        self.assertIn("--ncols:5", html)
+
+
+class TestDrawerLinkifyEscaping(BoardTestCase):
+    """JT-33: URLs in a description become anchors, but only AFTER escaping —
+    a literal '<' from the original text must never appear un-escaped."""
+
+    def test_url_in_description_becomes_escaped_anchor(self):
+        # Description carries a URL plus an HTML-looking fragment.
+        self.cli("add", "--type", "Task", "--title", "linky",
+                 "--desc", "see https://example.com/a?b=1&c=2 <b>x</b>")
+        html = (self.dir / ".jira/board.html").read_text()
+        # An external anchor is emitted (the linkify helper output is in the file).
+        self.assertIn('rel="noopener"', html)
+        # The board-data JSON is script-safe: the literal </b> is escaped to <\/b>,
+        # so no raw "</b>" closing tag from the user's text leaks into the document.
+        self.assertNotIn("<b>x</b>", html)
+        self.assertIn("<\\/b>", html)
 
 
 # --------------------------------------------------------------------------- #
