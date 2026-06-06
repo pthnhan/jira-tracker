@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-06T13:58:58+07:00",
+    "updated": "2026-06-06T14:22:07+07:00",
     "counter": 40
   },
   "types": [
@@ -638,7 +638,7 @@
       "type": "Task",
       "title": "Add artifact regeneration-sync test for committed board.html files",
       "description": "No test regenerates and diffs the committed examples/board.html / .jira/board.html against current jira.py output (tests only assert on temp-dir renders), yet README points users at examples/board.html. Verified in sync today; add a test rendering examples/sample-board.json and diffing against the committed artifact so template edits can't ship stale examples.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -650,8 +650,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:16+07:00",
-      "updated": "2026-06-06T09:52:16+07:00",
-      "comments": []
+      "updated": "2026-06-06T14:22:07+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:22:07+07:00",
+          "body": "Task F starting: artifact regeneration-sync test, regenerate artifacts with final template, sync .codex + global mirrors."
+        }
+      ]
     },
     {
       "key": "JT-26",
@@ -801,7 +807,7 @@
       "type": "Task",
       "title": "SKILL.md contract reconciliation (CLI table, lifecycle, multi-copy/concurrency)",
       "description": "CLI table drifted (missing --assignee/--author/--force/--file); no lifecycle guidance (reopen/cancel/comments append-only/merge conflicts); no multi-copy or concurrency story (the 2026-06-06 incident class); auto-apply tier underspecified for stale In-Progress issues. Reconcile docs with final CLI surface.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -811,12 +817,17 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T13:58:58+07:00",
+      "updated": "2026-06-06T14:22:07+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T13:58:58+07:00",
           "body": "Task E starting: SKILL.md CLI table regen against final --help, Workflow 6 lifecycle, multi-copy/concurrency section, tier examples; schema.md + README updates."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T14:22:07+07:00",
+          "body": "SKILL.md: CLI table regenerated from --help (12 commands + global-flags table), Workflow 6 lifecycle & corrections, Multiple copies & concurrency section, tightened tiered-writes with worked micro-examples, session-scoped leave-alone, large-board + --json guidance. schema.md: template_version/blocked_by/board.lock/--json shapes/doctor codes/dynamic colors/hash deep-links. README updated. Every claim verified against code; spec+quality reviews fixed 6 wording inaccuracies. Commits 0facb67 + 3b463ba + 94ef220."
         }
       ]
     },
