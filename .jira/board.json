@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-06T12:03:07+07:00",
+    "updated": "2026-06-06T12:50:07+07:00",
     "counter": 40
   },
   "types": [
@@ -475,7 +475,7 @@
       "type": "Task",
       "title": "Board template polish: data-key event delegation, parent-link a11y, color-mix fallbacks",
       "description": "Minors from the 2026-06-06 board-redesign review: (1) replace inline onclick handlers with delegated listeners on data-key attributes — closes a latent JS-string escaping gap (unreachable via CLI-validated keys) and is less code; (2) drawer parent link is a no-href <a>, not keyboard-focusable. Pre-existing, not from this change: issues with a status outside BOARD.statuses count in the header total but render in no column.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -485,12 +485,17 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-06T01:32:21+07:00",
-      "updated": "2026-06-06T09:52:26+07:00",
+      "updated": "2026-06-06T12:50:07+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T09:52:26+07:00",
           "body": "Dropped item (3) color-mix fallbacks: the 2026-06-06 high-effort review re-verified it and refuted it as non-actionable — every badge/pill background in the template already requires color-mix (only the toolbar has a cascade fallback), and color-mix is baseline in all evergreen browsers since mid-2023, so no realistic environment degrades just the one border."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:50:07+07:00",
+          "body": "Task C starting: replacing all inline onclick with delegated data-key listeners (closes the JS-string escaping gap)."
         }
       ]
     },
@@ -499,7 +504,7 @@
       "type": "Bug",
       "title": "Epic-filter semantics inconsistent: dropdown counts, empty state, header visibility",
       "description": "From the 2026-06-06 high-effort review of the redesign (jira.py ~633/691/706): (1) epic dropdown count uses the filtered set while the group progress denominator uses ALL unfiltered children — numbers diverge under any active filter (CONFIRMED); (2) a selected epic whose children are all filtered out still renders a header with 'no matching issues' because the suppression guard requires !fEpic (CONFIRMED); (3) epic-group visibility is driven solely by matching children, never testing the epic's own type/priority against active filters (PLAUSIBLE).",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -511,15 +516,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:02+07:00",
-      "updated": "2026-06-06T09:52:02+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:50:07+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:50:07+07:00",
+          "body": "Task C: unified epic-filter semantics (memberCount drives dropdown counts, group visibility, and noMatch state)."
+        }
+      ]
     },
     {
       "key": "JT-22",
       "type": "Bug",
       "title": "Grandchild sub-tasks fall into 'No Epic' — epic grouping matches direct parent only",
       "description": "matchEpic/isOrphan/renderEpics (jira.py ~591/595/693) only test i.parent===epic.key. valid_parent imposes no type rule, so Sub-task→Story→Epic chains are permitted by the data model but render under 'No Epic' and are hidden when their epic is selected. Carried over from the old template; no such chain exists in shipped data yet.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -531,15 +542,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:02+07:00",
-      "updated": "2026-06-06T09:52:02+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:50:07+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:50:07+07:00",
+          "body": "Task C: transitive nearest-Epic-ancestor membership map (cycle-safe)."
+        }
+      ]
     },
     {
       "key": "JT-23",
       "type": "Task",
       "title": "Restore at-a-glance status counts while scrolled",
       "description": "The redesign un-stickied the header: per-status count chips (#stats) and project name scroll away; the sticky toolbar carries only filters + mini key badge. Surface the counts in (or near) the sticky toolbar so the summary stays visible on long boards.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -551,8 +568,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:16+07:00",
-      "updated": "2026-06-06T09:52:16+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:50:07+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:50:07+07:00",
+          "body": "Task C: compact status chips inside the sticky toolbar when stuck."
+        }
+      ]
     },
     {
       "key": "JT-24",
@@ -599,7 +622,7 @@
       "type": "Bug",
       "title": "Concurrent CLI writes lose updates; shared tmp file can corrupt board.json",
       "description": "Reproduced 3/3: 10 parallel adds persist only 8-9 issues (load->mutate->save races, last writer wins); write_atomic uses a fixed board.json.tmp so concurrent writers interleave bytes and can leave invalid JSON. Fix: flock-based board.lock spanning load->save for all mutators + render, and unique per-process tmp names.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "High",
       "parent": "JT-6",
       "labels": [
@@ -610,15 +633,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "board_lock (flock, blocking) spans load->save for all mutators + render; write_atomic uses mkstemp + chmod 0644 + os.replace with unlink-on-failure. Verified: 10 parallel adds -> 10 issues, counter 10. Commits e639062 + 5268403."
+        }
+      ]
     },
     {
       "key": "JT-27",
       "type": "Bug",
       "title": "U+2028/U+2029 unescaped in board.html embedded JSON payload",
       "description": "render_html json.dumps(ensure_ascii=False) emits raw line/paragraph separators into the <script> block; </ is escaped but U+2028/29 are not. Escape them after the </ replace.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -629,8 +658,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "U+2028/U+2029 escaped in the embedded payload after the </ escape; regression test with U+2028 in a title. Commit e639062."
+        }
+      ]
     },
     {
       "key": "JT-28",
@@ -677,7 +712,7 @@
       "type": "Task",
       "title": "URL-hash deep links for filters, view, and open issue",
       "description": "All view/filter/search/drawer state lives in JS vars and dies on reload; links are unshareable. Serialize state to location.hash (replaceState), parse on load, support bare #JT-7 shorthand, handle hashchange.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -689,8 +724,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:50:07+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:50:07+07:00",
+          "body": "Task C: URL-hash state (replaceState) for view/filters/search/open issue incl. bare #JT-n shorthand."
+        }
+      ]
     },
     {
       "key": "JT-31",
@@ -715,7 +756,7 @@
       "type": "Task",
       "title": "Small CLI guards: reopen comment, empty title, list --parent validation, --file position",
       "description": "move out of Done/Cancelled requires --comment; add/set reject whitespace titles; list --parent validates the key via find() instead of silent empty result; unify add/set parent validation in one resolve_parent helper; --file works before and after the subcommand.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -726,8 +767,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "Reopen-from-closed requires --comment; empty/whitespace titles rejected on add/set; list --parent validates via find(); resolve_parent unifies add/set; --file accepted before and after the subcommand. Commits e639062 + 5268403."
+        }
+      ]
     },
     {
       "key": "JT-33",
@@ -754,7 +801,7 @@
       "type": "Task",
       "title": "Stale-generator guard: template version stamp + CLI warning",
       "description": "2026-06-06 incident: a stale global jira.py silently re-rendered board.html with an old template. Stamp TEMPLATE_VERSION into board.json on save and into board.html; load() dies with a clear message when the board stamp is newer than the CLI.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -765,8 +812,14 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "TEMPLATE_VERSION=2 stamped by save(), embedded as HTML comment; load() dies cleanly when the board stamp is newer than the CLI (incl. non-int stamps). Commits e639062 + 5268403."
+        }
+      ]
     },
     {
       "key": "JT-35",
@@ -790,7 +843,7 @@
       "type": "Task",
       "title": "Machine-readable --json output mode for list/next/show/status",
       "description": "Global --json flag emitting stable compact JSON to stdout so agents stop text-scraping. Foundational for doctor and future tooling.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-35",
       "labels": [
@@ -801,15 +854,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T12:03:07+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "Global --json on the common parser: list/next/show/status/doctor emit stable compact JSON; human output unchanged. Commits 025bf21 + 0e886de."
+        }
+      ]
     },
     {
       "key": "JT-37",
       "type": "Task",
       "title": "jira doctor: board integrity validation command",
       "description": "Read-only scan: duplicate keys, dangling/cyclic parents and blocked_by, counter drift, non-canonical vocabulary, malformed timestamps. Exit 1 on problems.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-35",
       "labels": [
@@ -820,15 +879,21 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T12:03:07+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "doctor: 12 problem codes incl. true-cycle-membership detection, exit 1 on problems; read-only; all codes test-covered. Commits 025bf21 + 0e886de."
+        }
+      ]
     },
     {
       "key": "JT-38",
       "type": "Task",
       "title": "Dependency links: blocked-by with cycle rejection, next integration, drawer display",
       "description": "link KEY --blocked-by/--unblock with DFS cycle rejection; next excludes issues with open blockers and lists them separately; show prints blocked-by/blocks; drawer shows blocker chips, cards show a blocked indicator.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Medium",
       "parent": "JT-35",
       "labels": [
@@ -840,8 +905,19 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T12:03:07+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "Python half shipped in 025bf21/0e886de: link --blocked-by/--unblock with DFS cycle rejection, show prints blocked-by/blocks, next excludes blocked issues. Drawer chips + card indicator land with Task D."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "In progress pending the Task D drawer display."
+        }
+      ]
     },
     {
       "key": "JT-39",
@@ -868,7 +944,7 @@
       "type": "Task",
       "title": "Stale-WIP detection in next/status",
       "description": "Annotate In Progress issues whose updated is older than 7 days (warn 'stale Nd') in next and status, operationalizing the skill's own dont-let-WIP-pile-up rule.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-35",
       "labels": [
@@ -879,8 +955,15 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T12:03:07+07:00",
-      "comments": []
+      "updated": "2026-06-06T12:49:52+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T12:49:52+07:00",
+          "body": "STALE_DAYS=7 annotations in next/status (handles naive-tz stamps); status --json exposes stale keys. Commits 025bf21 + 0e886de."
+        }
+      ]
     }
-  ]
+  ],
+  "template_version": 2
 }
