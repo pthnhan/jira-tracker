@@ -17,3 +17,6 @@ docs/superpowers/
 # with the repo so it travels with the project and survives fresh clones.
 # If you prefer the rendered HTML not be versioned, uncomment the next line:
 # .jira/board.html
+
+# Advisory lock file used by jira.py for concurrent-write protection (POSIX only)
+.jira/board.lock

@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -197,10 +198,10 @@ class TestReviewBugs(BoardTestCase):
         self.assertNotIn("Traceback", r.stderr)
 
     def test_save_leaves_no_temp_files(self):
-        """JT-11: atomic writes must clean up after themselves."""
+        """JT-11: atomic writes must clean up after themselves (board.lock is expected)."""
         self.cli("add", "--type", "Task", "--title", "T")
         leftovers = [p.name for p in (self.dir / ".jira").iterdir()
-                     if p.name not in ("board.json", "board.html")]
+                     if p.name not in ("board.json", "board.html", "board.lock")]
         self.assertEqual(leftovers, [])
 
     def test_set_rejects_self_parent(self):
@@ -272,6 +273,168 @@ class TestModernTemplate(BoardTestCase):
         html = self.html()
         self.assertIn('class="drawer"', html)
         self.assertIn("IntersectionObserver", html)
+
+
+# --------------------------------------------------------------------------- #
+# CLI hardening — JT-26 / JT-27 / JT-32 / JT-34
+# --------------------------------------------------------------------------- #
+
+class TestConcurrency(BoardTestCase):
+    """JT-26: 10 parallel adds must all persist (no last-writer-wins loss)."""
+
+    def test_ten_parallel_adds_all_persist(self):
+        errors = []
+
+        def do_add(n):
+            r = run(["add", "--type", "Task", "--title", f"Task {n}"], self.dir)
+            if r.returncode != 0:
+                errors.append(r.stderr)
+
+        threads = [threading.Thread(target=do_add, args=(i,)) for i in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [], f"some adds failed: {errors}")
+        b = self.board()
+        self.assertEqual(len(b["issues"]), 10, f"expected 10 issues, got {len(b['issues'])}")
+        self.assertEqual(b["project"]["counter"], 10)
+
+
+class TestU2028Escaping(BoardTestCase):
+    """JT-27: U+2028/U+2029 must be escaped in the <script> JSON payload."""
+
+    def test_u2028_in_title_is_escaped_in_html(self):
+        title = "line sep"
+        self.cli("add", "--type", "Task", "--title", title)
+        html = (self.dir / ".jira/board.html").read_text()
+        # Find the script block with board data
+        self.assertNotIn(" ", html, "raw U+2028 must not appear in board.html")
+        self.assertIn("\\u2028", html, "escaped \\u2028 must appear in board.html")
+
+    def test_u2029_in_title_is_escaped_in_html(self):
+        title = "para sep"
+        self.cli("add", "--type", "Task", "--title", title)
+        html = (self.dir / ".jira/board.html").read_text()
+        self.assertNotIn(" ", html, "raw U+2029 must not appear in board.html")
+        self.assertIn("\\u2029", html, "escaped \\u2029 must appear in board.html")
+
+
+class TestMoveGuard(BoardTestCase):
+    """JT-32a: moving out of a closed status requires --comment."""
+
+    def test_move_done_to_todo_without_comment_fails(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "Done")
+        r = self.cli("move", "TST-1", "To Do", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("TST-1", r.stderr)
+        self.assertIn("Done", r.stderr)
+
+    def test_move_done_to_todo_with_comment_succeeds(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "Done")
+        self.cli("move", "TST-1", "To Do", "--comment", "Reopening because spec changed")
+        self.assertEqual(self.issue("TST-1")["status"], "To Do")
+
+    def test_move_cancelled_to_in_progress_without_comment_fails(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "Cancelled")
+        r = self.cli("move", "TST-1", "In Progress", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_move_open_to_open_no_comment_required(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "In Progress")
+        self.cli("move", "TST-1", "In Review")  # open -> open: no comment needed
+        self.assertEqual(self.issue("TST-1")["status"], "In Review")
+
+
+class TestEmptyTitleGuard(BoardTestCase):
+    """JT-32b: blank/whitespace titles must be rejected."""
+
+    def test_add_whitespace_title_fails(self):
+        r = self.cli("add", "--type", "Task", "--title", "   ", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("title", r.stderr)
+
+    def test_add_empty_title_fails(self):
+        r = self.cli("add", "--type", "Task", "--title", "", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_set_empty_title_fails(self):
+        self.cli("add", "--type", "Task", "--title", "Real")
+        r = self.cli("set", "TST-1", "--title", "", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("title", r.stderr)
+
+
+class TestListParentGuard(BoardTestCase):
+    """JT-32c: list --parent with an unknown key must die loudly."""
+
+    def test_list_unknown_parent_fails(self):
+        r = self.cli("list", "--parent", "NOPE-1", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not found", r.stderr)
+
+    def test_list_known_parent_works(self):
+        self.cli("add", "--type", "Epic", "--title", "E")
+        self.cli("add", "--type", "Task", "--title", "T", "--parent", "TST-1")
+        r = self.cli("list", "--parent", "TST-1")
+        self.assertIn("TST-2", r.stdout)
+
+
+class TestFilePositionBothWays(BoardTestCase):
+    """JT-32e: --file must be accepted before AND after the subcommand."""
+
+    def test_file_before_subcommand(self):
+        board_path = str(self.dir / ".jira/board.json")
+        r = run(["--file", board_path, "list"], self.dir)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_file_after_subcommand(self):
+        board_path = str(self.dir / ".jira/board.json")
+        r = run(["list", "--file", board_path], self.dir)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_file_after_add_subcommand(self):
+        board_path = str(self.dir / ".jira/board.json")
+        r = run(["add", "--file", board_path, "--type", "Task", "--title", "Via subparser file"], self.dir)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        b = json.loads(Path(board_path).read_text())
+        self.assertEqual(len(b["issues"]), 1)
+
+
+class TestTemplateVersion(BoardTestCase):
+    """JT-34: template_version stamping and forward-compat guard."""
+
+    def test_save_stamps_template_version(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        b = self.board()
+        self.assertIn("template_version", b, "template_version must be stamped on save")
+        self.assertIsInstance(b["template_version"], int)
+
+    def test_newer_board_version_dies(self):
+        p = self.dir / ".jira/board.json"
+        b = json.loads(p.read_text())
+        b["template_version"] = 99
+        p.write_text(json.dumps(b, indent=2) + "\n")
+        r = self.cli("list", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("newer", r.stderr)
+
+    def test_html_has_template_version_comment(self):
+        html = (self.dir / ".jira/board.html").read_text()
+        self.assertIn("<!-- jira-tracker template v", html)
+
+
+class TestLockFileInGitignore(unittest.TestCase):
+    """JT-26: board.lock must be gitignored."""
+
+    def test_board_lock_in_gitignore(self):
+        gitignore = (REPO / ".gitignore").read_text()
+        self.assertIn("board.lock", gitignore)
 
 
 if __name__ == "__main__":

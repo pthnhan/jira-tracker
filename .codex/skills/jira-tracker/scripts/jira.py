@@ -13,13 +13,25 @@ No third-party dependencies — Python 3.8+ standard library only.
 """
 
 import argparse
+import contextlib
 import datetime as _dt
 import html
 import json
 import os
 import re
 import sys
+import tempfile
 from pathlib import Path
+
+try:
+    import fcntl as _fcntl
+    def _flock_exclusive(fh):
+        _fcntl.flock(fh, _fcntl.LOCK_EX)
+    def _flock_release(fh):
+        _fcntl.flock(fh, _fcntl.LOCK_UN)
+except ImportError:  # non-POSIX (Windows) — no locking, document the risk
+    def _flock_exclusive(fh): pass   # noqa: no-op on non-POSIX platforms
+    def _flock_release(fh): pass     # noqa: no-op on non-POSIX platforms
 
 # --------------------------------------------------------------------------- #
 # Vocabulary
@@ -34,6 +46,8 @@ OPEN_STATUSES = {"To Do", "In Progress", "In Review"}
 CLOSED_STATUSES = {"Done", "Cancelled"}
 
 DEFAULT_FILE = Path(".jira/board.json")
+
+TEMPLATE_VERSION = 2
 
 
 # --------------------------------------------------------------------------- #
@@ -53,29 +67,63 @@ def board_path(args) -> Path:
     return Path(args.file) if getattr(args, "file", None) else DEFAULT_FILE
 
 
+@contextlib.contextmanager
+def board_lock(path: Path):
+    """Exclusive advisory lock spanning the load→mutate→save cycle.
+
+    Uses fcntl.flock on <board dir>/board.lock (POSIX).  On non-POSIX
+    platforms (Windows) fcntl is unavailable and the lock is a no-op —
+    concurrent writes on those platforms remain unprotected.
+    """
+    lock_path = path.parent / "board.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "a", encoding="utf-8")
+    try:
+        _flock_exclusive(fh)
+        yield
+    finally:
+        _flock_release(fh)
+        fh.close()
+
+
 def load(args) -> dict:
     p = board_path(args)
     if not p.exists():
         die(f"no board found at {p}. Run `jira.py init` first.")
     try:
         with open(p, "r", encoding="utf-8") as fh:
-            return json.load(fh)
+            board = json.load(fh)
     except json.JSONDecodeError as e:
         die(f"could not parse {p} ({e}) — fix the JSON or restore it from git")
+    if board.get("template_version", 0) > TEMPLATE_VERSION:
+        die(
+            f"this board was written by a newer jira.py (template_version "
+            f"{board['template_version']} > {TEMPLATE_VERSION}). "
+            f"Run the repo-local copy at .claude/skills/jira-tracker/scripts/jira.py"
+        )
+    return board
 
 
 def write_atomic(path: Path, text: str):
-    """Write via a temp file + rename so an interrupted write can't corrupt the target."""
-    tmp = path.with_name(path.name + ".tmp")
-    with open(tmp, "w", encoding="utf-8") as fh:
-        fh.write(text)
-    os.replace(tmp, path)
+    """Write via a unique tmp file + rename; cleans up on failure."""
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def save(board: dict, args, render: bool = True):
     p = board_path(args)
     p.parent.mkdir(parents=True, exist_ok=True)
     board["project"]["updated"] = now()
+    board["template_version"] = TEMPLATE_VERSION
     write_atomic(p, json.dumps(board, indent=2, ensure_ascii=False) + "\n")
     if render:
         out = p.with_name("board.html")
@@ -121,14 +169,16 @@ def split_csv(value):
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
-def valid_parent(board: dict, issue: dict, parent_key: str) -> str:
-    """Resolve a parent key, refusing self-parenting and ancestry cycles."""
+def resolve_parent(board: dict, parent_key: str, child_key: str = None) -> str:
+    """Resolve a parent key; when child_key given, also refuse self-parent and cycles."""
     parent = find(board, parent_key)["key"]
+    if child_key is None:
+        return parent
     by_key = {i["key"]: i for i in board["issues"]}
     cur, seen = parent, set()
     while cur and cur not in seen:
-        if cur == issue["key"]:
-            die(f"parent {parent} would create a cycle with {issue['key']}")
+        if cur == child_key:
+            die(f"parent {parent} would create a cycle with {child_key}")
         seen.add(cur)
         cur = by_key.get(cur, {}).get("parent")
     return parent
@@ -159,96 +209,115 @@ def cmd_init(args):
         "priorities": PRIORITIES,
         "issues": [],
     }
-    out = save(board, args)
+    with board_lock(p):
+        out = save(board, args)
     print(f"initialized board '{board['project']['name']}' [{key}] at {p}")
     print(f"rendered board -> {out}")
 
 
 def cmd_add(args):
-    board = load(args)
-    itype = fuzzy(args.type, TYPES, "type")
-    priority = fuzzy(args.priority, PRIORITIES, "priority") if args.priority else "Medium"
-    status = fuzzy(args.status, STATUSES, "status") if args.status else "To Do"
-    parent = None
-    if args.parent:
-        parent = find(board, args.parent)["key"]  # validates existence
-    issue = {
-        "key": next_key(board),
-        "type": itype,
-        "title": args.title,
-        "description": args.desc or "",
-        "status": status,
-        "priority": priority,
-        "parent": parent,
-        "labels": split_csv(args.labels),
-        "components": split_csv(args.components),
-        "assignee": args.assignee or "",
-        "created": now(),
-        "updated": now(),
-        "comments": [],
-    }
-    board["issues"].append(issue)
-    save(board, args)
+    title = args.title.strip()
+    if not title:
+        die("title must not be empty")
+    p = board_path(args)
+    with board_lock(p):
+        board = load(args)
+        itype = fuzzy(args.type, TYPES, "type")
+        priority = fuzzy(args.priority, PRIORITIES, "priority") if args.priority else "Medium"
+        status = fuzzy(args.status, STATUSES, "status") if args.status else "To Do"
+        parent = None
+        if args.parent:
+            parent = resolve_parent(board, args.parent)  # validates existence
+        issue = {
+            "key": next_key(board),
+            "type": itype,
+            "title": title,
+            "description": args.desc or "",
+            "status": status,
+            "priority": priority,
+            "parent": parent,
+            "labels": split_csv(args.labels),
+            "components": split_csv(args.components),
+            "assignee": args.assignee or "",
+            "created": now(),
+            "updated": now(),
+            "comments": [],
+        }
+        board["issues"].append(issue)
+        save(board, args)
     print(f"created {issue['key']}  {itype}: {issue['title']}  [{status} / {priority}]"
           + (f"  ^{parent}" if parent else ""))
 
 
 def cmd_move(args):
-    board = load(args)
-    issue = find(board, args.key)
-    status = fuzzy(args.status, STATUSES, "status")
-    old = issue["status"]
-    issue["status"] = status
-    issue["updated"] = now()
-    if args.comment:
-        issue["comments"].append({"author": args.author or "agent", "at": now(), "body": args.comment})
-    save(board, args)
+    p = board_path(args)
+    with board_lock(p):
+        board = load(args)
+        issue = find(board, args.key)
+        status = fuzzy(args.status, STATUSES, "status")
+        old = issue["status"]
+        if old in CLOSED_STATUSES and status in OPEN_STATUSES and not args.comment:
+            die(f"{issue['key']} is {old}; reopening requires --comment explaining why")
+        issue["status"] = status
+        issue["updated"] = now()
+        if args.comment:
+            issue["comments"].append({"author": args.author or "agent", "at": now(), "body": args.comment})
+        save(board, args)
     print(f"{issue['key']}: {old} -> {status}")
 
 
 def cmd_comment(args):
-    board = load(args)
-    issue = find(board, args.key)
-    issue["comments"].append({"author": args.author or "agent", "at": now(), "body": args.body})
-    issue["updated"] = now()
-    save(board, args)
+    p = board_path(args)
+    with board_lock(p):
+        board = load(args)
+        issue = find(board, args.key)
+        issue["comments"].append({"author": args.author or "agent", "at": now(), "body": args.body})
+        issue["updated"] = now()
+        save(board, args)
     print(f"{issue['key']}: comment added ({len(issue['comments'])} total)")
 
 
 def cmd_set(args):
-    board = load(args)
-    issue = find(board, args.key)
-    changed = []
-    if args.title is not None:
-        issue["title"] = args.title; changed.append("title")
-    if args.desc is not None:
-        issue["description"] = args.desc; changed.append("description")
-    if args.priority is not None:
-        issue["priority"] = fuzzy(args.priority, PRIORITIES, "priority"); changed.append("priority")
-    if args.type is not None:
-        issue["type"] = fuzzy(args.type, TYPES, "type"); changed.append("type")
-    if args.parent is not None:
-        issue["parent"] = None if args.parent == "" else valid_parent(board, issue, args.parent); changed.append("parent")
-    if args.assignee is not None:
-        issue["assignee"] = args.assignee; changed.append("assignee")
-    if args.labels is not None:
-        issue["labels"] = split_csv(args.labels); changed.append("labels")
-    if args.components is not None:
-        issue["components"] = split_csv(args.components); changed.append("components")
-    if not changed:
-        die("nothing to set — pass at least one field flag")
-    issue["updated"] = now()
-    save(board, args)
+    p = board_path(args)
+    with board_lock(p):
+        board = load(args)
+        issue = find(board, args.key)
+        changed = []
+        if args.title is not None:
+            title = args.title.strip()
+            if not title:
+                die("title must not be empty")
+            issue["title"] = title; changed.append("title")
+        if args.desc is not None:
+            issue["description"] = args.desc; changed.append("description")
+        if args.priority is not None:
+            issue["priority"] = fuzzy(args.priority, PRIORITIES, "priority"); changed.append("priority")
+        if args.type is not None:
+            issue["type"] = fuzzy(args.type, TYPES, "type"); changed.append("type")
+        if args.parent is not None:
+            issue["parent"] = None if args.parent == "" else resolve_parent(board, args.parent, issue["key"]); changed.append("parent")
+        if args.assignee is not None:
+            issue["assignee"] = args.assignee; changed.append("assignee")
+        if args.labels is not None:
+            issue["labels"] = split_csv(args.labels); changed.append("labels")
+        if args.components is not None:
+            issue["components"] = split_csv(args.components); changed.append("components")
+        if not changed:
+            die("nothing to set — pass at least one field flag")
+        issue["updated"] = now()
+        save(board, args)
     print(f"{issue['key']}: updated {', '.join(changed)}")
 
 
-def _matches(issue, args):
+def _matches(issue, board, args):
     if getattr(args, "status", None) and issue["status"] != fuzzy(args.status, STATUSES, "status"):
         return False
     if getattr(args, "type", None) and issue["type"] != fuzzy(args.type, TYPES, "type"):
         return False
-    if getattr(args, "parent", None) and issue.get("parent") != args.parent.upper():
-        return False
+    if getattr(args, "parent", None):
+        canonical = find(board, args.parent)["key"]  # dies loudly on unknown key
+        if issue.get("parent") != canonical:
+            return False
     return True
 
 
@@ -262,7 +331,9 @@ def _sort_key(issue):
 
 def cmd_list(args):
     board = load(args)
-    issues = [i for i in board["issues"] if _matches(i, args)]
+    if getattr(args, "parent", None):
+        find(board, args.parent)  # validate + die loudly on unknown key before filtering
+    issues = [i for i in board["issues"] if _matches(i, board, args)]
     if not args.all and not args.status:  # an explicit --status filter implies --all
         issues = [i for i in issues if i["status"] in OPEN_STATUSES]
     issues.sort(key=_sort_key)
@@ -334,9 +405,11 @@ def cmd_status(args):
 
 
 def cmd_render(args):
+    p = board_path(args)
     board = load(args)  # read-only: regenerate the view without touching the JSON
-    out = board_path(args).with_name("board.html")
-    render_html(board, out)
+    out = p.with_name("board.html")
+    with board_lock(p):
+        render_html(board, out)
     print(f"rendered -> {out}")
 
 
@@ -345,13 +418,19 @@ def cmd_render(args):
 # --------------------------------------------------------------------------- #
 
 def render_html(board: dict, out_path: Path):
-    data_json = json.dumps(board, ensure_ascii=False).replace("</", "<\\/")
+    data_json = (
+        json.dumps(board, ensure_ascii=False)
+        .replace("</", "<\\/")
+        .replace(" ", "\\u2028")
+        .replace(" ", "\\u2029")
+    )
     html_doc = HTML_TEMPLATE.replace("__BOARD_DATA__", data_json)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     write_atomic(out_path, html_doc)
 
 
-HTML_TEMPLATE = r"""<!DOCTYPE html>
+HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -788,16 +867,20 @@ render();
 # --------------------------------------------------------------------------- #
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="jira.py", description="Tiny Jira-style work tracker (JSON + HTML).")
-    p.add_argument("--file", help=f"path to board json (default: {DEFAULT_FILE})")
+    # common parent carries --file so every subparser accepts it too (JT-32e)
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--file", help=f"path to board json (default: {DEFAULT_FILE})")
+
+    p = argparse.ArgumentParser(prog="jira.py", description="Tiny Jira-style work tracker (JSON + HTML).",
+                                parents=[common])
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("init", help="create a new board")
+    s = sub.add_parser("init", help="create a new board", parents=[common])
     s.add_argument("--name"); s.add_argument("--key"); s.add_argument("--repo")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_init)
 
-    s = sub.add_parser("add", help="create an issue")
+    s = sub.add_parser("add", help="create an issue", parents=[common])
     s.add_argument("--type", required=True, help="Epic|Story|Task|Bug|Sub-task")
     s.add_argument("--title", required=True)
     s.add_argument("--desc"); s.add_argument("--priority"); s.add_argument("--status")
@@ -805,39 +888,39 @@ def build_parser():
     s.add_argument("--assignee")
     s.set_defaults(func=cmd_add)
 
-    s = sub.add_parser("move", help="change an issue's status")
+    s = sub.add_parser("move", help="change an issue's status", parents=[common])
     s.add_argument("key"); s.add_argument("status")
     s.add_argument("--comment"); s.add_argument("--author")
     s.set_defaults(func=cmd_move)
 
-    s = sub.add_parser("comment", help="add a comment to an issue")
+    s = sub.add_parser("comment", help="add a comment to an issue", parents=[common])
     s.add_argument("key"); s.add_argument("body"); s.add_argument("--author")
     s.set_defaults(func=cmd_comment)
 
-    s = sub.add_parser("set", help="edit fields on an issue")
+    s = sub.add_parser("set", help="edit fields on an issue", parents=[common])
     s.add_argument("key")
     s.add_argument("--title"); s.add_argument("--desc"); s.add_argument("--priority")
     s.add_argument("--type"); s.add_argument("--parent"); s.add_argument("--assignee")
     s.add_argument("--labels"); s.add_argument("--components")
     s.set_defaults(func=cmd_set)
 
-    s = sub.add_parser("list", help="list issues (open by default)")
+    s = sub.add_parser("list", help="list issues (open by default)", parents=[common])
     s.add_argument("--status"); s.add_argument("--type"); s.add_argument("--parent")
     s.add_argument("--all", action="store_true", help="include Done/Cancelled")
     s.set_defaults(func=cmd_list)
 
-    s = sub.add_parser("next", help="recommend what to work on")
+    s = sub.add_parser("next", help="recommend what to work on", parents=[common])
     s.add_argument("--limit", type=int, default=5)
     s.set_defaults(func=cmd_next)
 
-    s = sub.add_parser("show", help="show full issue detail")
+    s = sub.add_parser("show", help="show full issue detail", parents=[common])
     s.add_argument("key")
     s.set_defaults(func=cmd_show)
 
-    s = sub.add_parser("status", help="board summary")
+    s = sub.add_parser("status", help="board summary", parents=[common])
     s.set_defaults(func=cmd_status)
 
-    s = sub.add_parser("render", help="regenerate board.html from board.json")
+    s = sub.add_parser("render", help="regenerate board.html from board.json", parents=[common])
     s.set_defaults(func=cmd_render)
 
     return p
@@ -845,6 +928,9 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    # When --file is given after the subcommand it lands on args.file already;
+    # when given before, it also lands on args.file from the top-level parser.
+    # Both positions set the same attribute — no extra resolution needed.
     args.func(args)
 
 
