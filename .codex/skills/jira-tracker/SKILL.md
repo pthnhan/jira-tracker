@@ -44,7 +44,7 @@ Commands:
 |---|---|
 | `init --name N --key K [--repo URL] [--force]` | Create a new board (`--force` overwrites an existing one) |
 | `add --type T --title "..." [--priority P --parent KEY --desc "..." --labels a,b --components x --status S --assignee A]` | Create an issue, prints its key; rejects blank/whitespace titles |
-| `move KEY STATUS [--comment "..."] [--author A]` | Change status (fuzzy: `prog`, `done`, `review` all work); moving **out of Done/Cancelled requires `--comment`** |
+| `move KEY STATUS [--comment "..."] [--author A]` | Change status (fuzzy: `prog`, `done`, `review` all work); **reopening (moving from Done/Cancelled to an open status) requires `--comment`** — closed→closed moves don't |
 | `comment KEY "text" [--author A]` | Append a comment (append-only — no edit/delete) |
 | `set KEY [--title/--desc/--priority/--type/--parent/--assignee/--labels/--components]` | Edit fields; rejects blank/whitespace titles; `--parent ""` clears the parent |
 | `list [--status S --type T --parent KEY --all]` | List issues (open only unless `--all`); `--parent KEY` validates the key |

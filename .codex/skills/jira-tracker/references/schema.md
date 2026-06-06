@@ -149,6 +149,6 @@ variable based on the board's `statuses` array at render time:
   any hardcoded column count.
 
 URL-hash deep-links are supported: `#KEY` (e.g. `#PAY-3`) opens the issue
-drawer directly; query-string params (`?view=`, `?epic=`, `?type=`, `?pri=`,
-`?q=`, `?issue=`) set the filter/view state on load. The hash state is kept in
-sync with `replaceState` and `URLSearchParams` as the user interacts.
+drawer directly; hash-encoded params (`#v=epics&e=<epic>&t=<type>&p=<priority>&q=<search>&i=<issue>`)
+set the filter/view state on load. The hash state is kept in sync with
+`replaceState` and `URLSearchParams` as the user interacts.
