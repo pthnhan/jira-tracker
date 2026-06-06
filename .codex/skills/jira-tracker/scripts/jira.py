@@ -823,6 +823,10 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
     -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--shadow)}
   .toolbar .mini{display:none}
   .toolbar.stuck .mini{display:inline-block}
+  .mini-stats{margin-left:auto;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .toolbar.stuck .mini-stats{display:inline-flex}
+  .mini-stats .ms{display:inline-flex;align-items:center;gap:4px}
+  .mini-stats .ms b{color:var(--ink);font-weight:700}
   .seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:9px;
     overflow:hidden;box-shadow:var(--shadow)}
   .seg button{background:transparent;color:var(--muted);border:0;padding:7px 14px;
@@ -950,6 +954,7 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   <select id="fpri" title="filter by priority"></select>
   <input id="fsearch" type="search" placeholder="search key or title…" title="search by key or title">
   <button class="clear-btn" id="fclear" hidden>✕ clear</button>
+  <span class="mini-stats mini" id="ministats"></span>
   <button class="theme-btn" id="ftheme" title="toggle light/dark theme">🌙</button>
 </nav>
 
@@ -972,27 +977,54 @@ const pcol=p=>PRI_COLOR[p]||'var(--muted)';
 const tint=(c,p)=>`color-mix(in srgb, ${c} ${p}%, transparent)`;
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const trunc=(s,n)=>{s=s==null?'':String(s);return s.length>n?s.slice(0,n-1)+'…':s};
-let view='board', fEpic='', fType='', fPri='', q='';
+let view='board', fEpic='', fType='', fPri='', q='', openKey='';
 
-const epicsOf=()=>BOARD.issues.filter(i=>i.type==='Epic');
-const isOrphan=i=>i.type!=='Epic'&&!epicsOf().some(e=>e.key===i.parent);
-function matchEpic(i){
-  if(!fEpic)return true;
-  if(fEpic==='__none__')return isOrphan(i);
-  return i.key===fEpic||i.parent===fEpic;
+// Transitive epic membership, rebuilt once per render pass (JT-22).
+// byKey: key -> issue;  EPIC_OF: key -> nearest Epic ancestor key (or undefined);
+// EPICS: the Epic issues in board order.
+const byKey=new Map(BOARD.issues.map(i=>[i.key,i]));
+let EPIC_OF=new Map(), EPICS=[];
+function buildEpicIndex(){
+  EPIC_OF=new Map();
+  EPICS=BOARD.issues.filter(i=>i.type==='Epic');
+  for(const i of BOARD.issues){
+    let cur=i, seen=new Set(), found;
+    while(cur&&!seen.has(cur.key)){
+      seen.add(cur.key);
+      if(cur.type==='Epic'&&cur.key!==i.key){found=cur.key;break;}
+      cur=cur.parent?byKey.get(cur.parent):null;
+    }
+    if(found)EPIC_OF.set(i.key,found);
+  }
 }
+const epicOf=i=>EPIC_OF.get(i.key);
+const isOrphan=i=>i.type!=='Epic'&&!EPIC_OF.has(i.key);
 function matchSearch(i){
   if(!q)return true;
   const s=q.toLowerCase();
   return i.key.toLowerCase().includes(s)||(i.title||'').toLowerCase().includes(s);
 }
-function passes(i,skip){
-  return (skip==='epic'||matchEpic(i))
-    &&(skip==='type'||!fType||i.type===fType)
+// Non-epic facets only (type, priority, search) — the shared filter for member counts.
+function passesFacets(i,skip){
+  return (skip==='type'||!fType||i.type===fType)
     &&(skip==='pri'||!fPri||i.priority===fPri)
     &&matchSearch(i);
 }
+function matchEpic(i){
+  if(!fEpic)return true;
+  if(fEpic==='__none__')return isOrphan(i);
+  return i.key===fEpic||epicOf(i)===fEpic;
+}
+function passes(i,skip){
+  return (skip==='epic'||matchEpic(i))&&passesFacets(i,skip);
+}
 const visible=()=>BOARD.issues.filter(i=>passes(i));
+// Members of an epic that pass the non-epic facets, EXCLUDING the epic itself (JT-21).
+// '__none__' counts orphans passing the same facets.
+function memberCount(ek){
+  if(ek==='__none__')return BOARD.issues.filter(i=>isOrphan(i)&&passesFacets(i)).length;
+  return BOARD.issues.filter(i=>i.key!==ek&&epicOf(i)===ek&&passesFacets(i)).length;
+}
 
 function header(){
   const p=BOARD.project;
@@ -1006,6 +1038,9 @@ function header(){
   document.getElementById('stats').innerHTML=
     `<span class="stat"><b>${BOARD.issues.length}</b> total</span>`+
     STATUSES.filter(s=>counts[s]).map(s=>`<span class="stat"><span class="dot" style="background:${scol(s)}"></span>${esc(s)} <b>${counts[s]}</b></span>`).join('');
+  // Condensed per-status strip shown only when the toolbar is stuck (JT-23).
+  document.getElementById('ministats').innerHTML=
+    STATUSES.filter(s=>counts[s]).map(s=>`<span class="ms" title="${esc(s)}"><span class="dot" style="background:${scol(s)}"></span><b>${counts[s]}</b></span>`).join('');
   document.getElementById('foot').textContent=
     `source: .jira/board.json · regenerate with: python jira.py render · updated ${p.updated}`;
 }
@@ -1015,10 +1050,11 @@ function setOpts(id,opts,cur){
 }
 function fillFilters(){
   const base=f=>BOARD.issues.filter(i=>passes(i,f));
-  const eb=base('epic');
-  const eOpts=[{v:'',label:`Epic · all (${eb.length})`}]
-    .concat(epicsOf().map(e=>({v:e.key,label:`${e.key} · ${trunc(e.title,32)} (${eb.filter(i=>i.key===e.key||i.parent===e.key).length})`})))
-    .concat([{v:'__none__',label:`— no epic (${eb.filter(isOrphan).length})`}]);
+  // 'Epic · all' counts every issue passing the non-epic facets (the union of all groups).
+  const ebAll=BOARD.issues.filter(i=>passesFacets(i)).length;
+  const eOpts=[{v:'',label:`Epic · all (${ebAll})`}]
+    .concat(EPICS.map(e=>({v:e.key,label:`${e.key} · ${trunc(e.title,32)} (${memberCount(e.key)})`})))
+    .concat([{v:'__none__',label:`— no epic (${memberCount('__none__')})`}]);
   setOpts('fepic',eOpts,fEpic);
   const tb=base('type');
   setOpts('ftype',[{v:'',label:`Type · all (${tb.length})`}]
@@ -1033,13 +1069,13 @@ function clearFilters(){
   document.getElementById('fsearch').value='';
   render();
 }
-const noMatch=()=>`<div class="empty">No issues match the current filters. <a href="#" onclick="clearFilters();return false">Clear filters</a></div>`;
+const noMatch=()=>`<div class="empty">No issues match the current filters. <a href="#" data-action="clear">Clear filters</a></div>`;
 const noIssues=()=>`<div class="empty">No issues yet. Create one with: python jira.py add --type Task --title "..."</div>`;
 
 function cardHTML(i){
   const labels=(i.labels||[]).map(l=>`<span class="chip">${esc(l)}</span>`).join('');
   const cc=(i.comments&&i.comments.length)?`<span class="cc">💬 ${i.comments.length}</span>`:'';
-  return `<div class="card" style="--tc:${tcol(i.type)}" onclick="openIssue('${esc(i.key)}')">
+  return `<div class="card" style="--tc:${tcol(i.type)}" data-key="${esc(i.key)}" tabindex="0" role="button" aria-label="${esc(i.key)}: ${esc(i.title)}">
     <div class="top">
       <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
       <span class="ckey">${esc(i.key)}</span>
@@ -1061,7 +1097,7 @@ function renderBoard(){
   }).join('')+'</div>';
 }
 function rowHTML(i){
-  return `<div class="row" onclick="openIssue('${esc(i.key)}')">
+  return `<div class="row" data-key="${esc(i.key)}" tabindex="0" role="button" aria-label="${esc(i.key)}: ${esc(i.title)}">
     <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
     <span class="ckey">${esc(i.key)}</span>
     <span class="title">${esc(i.title)}</span>
@@ -1070,42 +1106,46 @@ function rowHTML(i){
 }
 function renderEpics(){
   if(!BOARD.issues.length){document.getElementById('main').innerHTML=noIssues();return;}
-  const eps=epicsOf();
-  const items=visible();
   const childFilter=!!(fType||fPri||q);
+  // A specific epic with zero matching members under active filters → global empty state.
+  if(fEpic&&fEpic!=='__none__'&&childFilter&&memberCount(fEpic)===0){
+    document.getElementById('main').innerHTML=noMatch();return;
+  }
   let html='';
-  eps.forEach(e=>{
-    if(fEpic&&fEpic!==e.key)return;
-    const kidsAll=BOARD.issues.filter(i=>i.parent===e.key);
-    const kids=items.filter(i=>i.parent===e.key);
-    if(!fEpic&&childFilter&&!kids.length)return;
-    const done=kidsAll.filter(k=>k.status==='Done').length;
-    const pct=kidsAll.length?Math.round(done/kidsAll.length*100):0;
+  EPICS.forEach(e=>{
+    if(fEpic&&fEpic!=='__none__'&&fEpic!==e.key)return;
+    if(fEpic==='__none__')return; // No-Epic filter hides epic groups
+    const membersAll=BOARD.issues.filter(i=>i.key!==e.key&&epicOf(i)===e.key); // unfiltered, transitive
+    const kids=BOARD.issues.filter(i=>i.key!==e.key&&epicOf(i)===e.key&&passesFacets(i));
+    if(childFilter&&!kids.length)return; // with filters, only groups that still have members
+    const done=membersAll.filter(k=>k.status==='Done').length;
+    const pct=membersAll.length?Math.round(done/membersAll.length*100):0;
     const body=kids.length?kids.map(rowHTML).join('')
-      :(childFilter?'<div class="note">no matching issues</div>':'<div class="note">no child issues yet</div>');
-    html+=`<section class="epic-group"><div class="epic-head" onclick="openIssue('${esc(e.key)}')">
+      :(childFilter?'<div class="note">no matching issues</div>':'<div class="note">no issues yet</div>');
+    html+=`<section class="epic-group"><div class="epic-head" data-key="${esc(e.key)}">
       <span class="ttype" style="background:${tint(tcol('Epic'),14)};color:${tcol('Epic')}">Epic</span>
       <span class="ckey">${esc(e.key)}</span><span class="title">${esc(e.title)}</span>
-      <span class="prog"><span class="prog-bar"><i style="width:${pct}%"></i></span><span class="prog-n">${done}/${kidsAll.length} done</span></span>
+      <span class="prog" title="overall progress, ignores filters"><span class="prog-bar"><i style="width:${pct}%"></i></span><span class="prog-n">${done}/${membersAll.length} done</span></span>
       <span class="pill" style="background:${tint(scol(e.status),14)};color:${scol(e.status)}">${esc(e.status)}</span></div>
       <div class="epic-body">${body}</div></section>`;
   });
   if(!fEpic||fEpic==='__none__'){
-    const orphans=items.filter(isOrphan);
+    const orphans=BOARD.issues.filter(i=>isOrphan(i)&&passesFacets(i));
     if(orphans.length){
       html+=`<section class="epic-group"><div class="epic-head" style="cursor:default"><span class="title" style="color:var(--muted)">No Epic</span></div><div class="epic-body">${orphans.map(rowHTML).join('')}</div></section>`;
     }
   }
   document.getElementById('main').innerHTML=html||noMatch();
 }
-function render(){header();fillFilters();view==='board'?renderBoard():renderEpics();}
+function render(){buildEpicIndex();header();fillFilters();view==='board'?renderBoard():renderEpics();syncHash();}
 
 function openIssue(key){
   const i=BOARD.issues.find(x=>x.key===key);if(!i)return;
+  openKey=key;
   const d=document.getElementById('drawer');
   const par=i.parent?BOARD.issues.find(x=>x.key===i.parent):null;
   const parentCell=par
-    ?`<a class="plink" onclick="openIssue('${esc(par.key)}')">${esc(par.key)} · ${esc(trunc(par.title,30))}</a>`
+    ?`<a class="plink" href="#${esc(par.key)}" data-key="${esc(par.key)}">${esc(par.key)} · ${esc(trunc(par.title,30))}</a>`
     :esc(i.parent||'—');
   const rows=[
     ['Parent',parentCell],
@@ -1118,7 +1158,7 @@ function openIssue(key){
   d.innerHTML=`<div class="d-head">
       <span class="ttype" style="background:${tint(tcol(i.type),14)};color:${tcol(i.type)}">${esc(i.type)}</span>
       <span class="ckey">${esc(i.key)}</span>
-      <button class="x" onclick="closeDrawer()" title="close">✕</button>
+      <button class="x" data-action="close" title="close">✕</button>
     </div>
     <h2 class="d-title">${esc(i.title)}</h2>
     <div class="d-pills">
@@ -1132,19 +1172,78 @@ function openIssue(key){
       i.comments.map(c=>`<div class="cmt"><div class="h">${esc(c.author)} · ${esc(c.at)}</div><div class="b">${esc(c.body)}</div></div>`).join(''):''}`;
   document.getElementById('scrim').classList.add('on');
   d.classList.add('on');d.setAttribute('aria-hidden','false');d.scrollTop=0;
+  syncHash();
 }
 function closeDrawer(){
   document.getElementById('scrim').classList.remove('on');
   const d=document.getElementById('drawer');
   d.classList.remove('on');d.setAttribute('aria-hidden','true');
+  openKey='';
+  syncHash();
 }
+
+// ---- URL-hash state (JT-30) ----
+let lastHash=null; // guards the hashchange listener against our own writes
+function syncHash(){
+  const p=new URLSearchParams();
+  if(view==='epics')p.set('v','epics');
+  if(fEpic)p.set('e',fEpic);
+  if(fType)p.set('t',fType);
+  if(fPri)p.set('p',fPri);
+  if(q)p.set('q',q);
+  if(openKey)p.set('i',openKey);
+  const s=p.toString();
+  lastHash=s;
+  history.replaceState(null,'',s?'#'+s:location.pathname+location.search);
+}
+function applyHash(){
+  let h=location.hash.replace(/^#/,'');
+  view='board';fEpic=fType=fPri=q='';openKey='';
+  if(h){
+    if(h.indexOf('=')===-1){
+      // bare "#JT-7" shorthand → open that issue
+      openKey=decodeURIComponent(h);
+    }else{
+      const p=new URLSearchParams(h);
+      if(p.get('v')==='epics')view='epics';
+      fEpic=p.get('e')||'';fType=p.get('t')||'';fPri=p.get('p')||'';
+      q=p.get('q')||'';openKey=p.get('i')||'';
+    }
+  }
+  document.getElementById('fsearch').value=q;
+  setView(view);
+  if(openKey&&!BOARD.issues.some(i=>i.key===openKey))openKey='';
+}
+function setView(v){
+  view=v;
+  document.querySelectorAll('#viewseg button').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
+}
+
+// ---- event delegation (JT-20) ----
+// One click + one keydown handler resolve the nearest [data-key]/[data-action].
+function handleActivate(t){
+  const act=t.closest('[data-action]');
+  if(act){const a=act.dataset.action;if(a==='close')closeDrawer();else if(a==='clear')clearFilters();return true;}
+  const el=t.closest('[data-key]');
+  if(el){openIssue(el.dataset.key);return true;}
+  return false;
+}
+document.body.addEventListener('click',e=>{
+  if(handleActivate(e.target))e.preventDefault();
+});
+document.body.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const el=e.target.closest('[data-key],[data-action]');
+  if(!el)return;
+  e.preventDefault(); // also stops Space from scrolling
+  handleActivate(e.target);
+});
 
 document.getElementById('scrim').addEventListener('click',closeDrawer);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
 document.getElementById('viewseg').addEventListener('click',e=>{
   const b=e.target.closest('button');if(!b)return;
-  view=b.dataset.view;
-  [...document.querySelectorAll('#viewseg button')].forEach(x=>x.classList.toggle('on',x===b));
+  setView(b.dataset.view);
   render();
 });
 document.getElementById('fepic').addEventListener('change',e=>{fEpic=e.target.value;render();});
@@ -1164,7 +1263,15 @@ themeIcon();
 new IntersectionObserver(es=>{
   document.getElementById('toolbar').classList.toggle('stuck',!es[0].isIntersecting);
 },{rootMargin:'-1px 0px 0px 0px'}).observe(document.getElementById('sentinel'));
+window.addEventListener('hashchange',()=>{
+  if(location.hash.replace(/^#/,'')===lastHash)return; // ignore our own writes
+  applyHash();
+  render();
+  if(openKey)openIssue(openKey);else closeDrawer();
+});
+applyHash();
 render();
+if(openKey)openIssue(openKey);
 </script>
 </body>
 </html>"""

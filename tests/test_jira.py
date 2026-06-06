@@ -277,6 +277,85 @@ class TestModernTemplate(BoardTestCase):
         self.assertIn("IntersectionObserver", html)
 
 
+class TestTemplateInteraction(BoardTestCase):
+    """Task C: event delegation, transitive epics, hash state, sticky stats.
+
+    Black-box: assert on the rendered board.html. Build a board with an
+    Epic -> Story -> Sub-task chain plus orphans so the interaction markup is
+    actually emitted for cards and rows."""
+
+    def setUp(self):
+        super().setUp()
+        self.cli("add", "--type", "Epic", "--title", "Billing")            # TST-1
+        self.cli("add", "--type", "Story", "--title", "Invoices", "--parent", "TST-1")  # TST-2
+        self.cli("add", "--type", "Sub-task", "--title", "PDF", "--parent", "TST-2")    # TST-3 (transitive)
+        self.cli("add", "--type", "Task", "--title", "Orphan one")          # TST-4
+        self.cli("add", "--type", "Bug", "--title", "Orphan two")           # TST-5
+
+    def html(self):
+        return (self.dir / ".jira/board.html").read_text()
+
+    # ---- JT-20: event delegation, no inline handlers ----
+    def test_no_inline_onclick_anywhere(self):
+        self.assertNotIn("onclick=", self.html(),
+                         "all inline onclick handlers must be removed (event delegation)")
+
+    def test_cards_and_rows_carry_data_key(self):
+        self.assertIn("data-key", self.html())
+
+    def test_clickable_items_are_keyboard_accessible(self):
+        html = self.html()
+        self.assertIn('role="button"', html)
+        self.assertIn('tabindex="0"', html)
+        self.assertIn("aria-label", html)
+
+    def test_delegated_listener_resolves_closest_data_key(self):
+        self.assertIn("closest('[data-key]')", self.html())
+
+    def test_keydown_activates_on_enter_or_space(self):
+        html = self.html()
+        self.assertIn("keydown", html)
+        # Space activation must call preventDefault (avoid page scroll)
+        self.assertIn("preventDefault", html)
+
+    def test_drawer_parent_link_is_real_anchor_no_inline_js(self):
+        html = self.html()
+        # Parent link is now an <a href="#KEY" data-key="...">, not an onclick span
+        self.assertIn('class="plink" href="#', html)
+
+    def test_keys_never_interpolated_into_js_string_context(self):
+        # No `openIssue('...')` style inline calls with an interpolated key remain.
+        self.assertNotIn("openIssue('", self.html())
+
+    # ---- JT-23: sticky-toolbar stats strip ----
+    def test_mini_stats_marker_present(self):
+        html = self.html()
+        self.assertIn("mini-stats", html)
+        self.assertIn('id="ministats"', html)
+
+    # ---- JT-30: URL-hash state ----
+    def test_hash_state_uses_replacestate_and_searchparams(self):
+        html = self.html()
+        self.assertIn("replaceState", html)
+        self.assertIn("URLSearchParams", html)
+
+    def test_hash_state_listens_for_hashchange(self):
+        self.assertIn("hashchange", self.html())
+
+    # ---- JT-21/22: semantics helpers shipped in the template ----
+    def test_transitive_epic_index_built_per_pass(self):
+        html = self.html()
+        self.assertIn("buildEpicIndex", html)
+        self.assertIn("memberCount", html)
+
+    def test_overall_progress_ignores_filters_title(self):
+        self.assertIn("overall progress, ignores filters", self.html())
+
+    # ---- existing invariant must stay green ----
+    def test_no_raw_u2028_in_template(self):
+        self.assertNotIn(" ", self.html())
+
+
 # --------------------------------------------------------------------------- #
 # CLI hardening — JT-26 / JT-27 / JT-32 / JT-34
 # --------------------------------------------------------------------------- #
