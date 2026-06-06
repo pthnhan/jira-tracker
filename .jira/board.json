@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-06T13:18:58+07:00",
+    "updated": "2026-06-06T13:58:58+07:00",
     "counter": 40
   },
   "types": [
@@ -475,7 +475,7 @@
       "type": "Task",
       "title": "Board template polish: data-key event delegation, parent-link a11y, color-mix fallbacks",
       "description": "Minors from the 2026-06-06 board-redesign review: (1) replace inline onclick handlers with delegated listeners on data-key attributes — closes a latent JS-string escaping gap (unreachable via CLI-validated keys) and is less code; (2) drawer parent link is a no-href <a>, not keyboard-focusable. Pre-existing, not from this change: issues with a status outside BOARD.statuses count in the header total but render in no column.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -485,7 +485,7 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-06T01:32:21+07:00",
-      "updated": "2026-06-06T13:18:57+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
@@ -501,6 +501,11 @@
           "author": "agent",
           "at": "2026-06-06T13:18:57+07:00",
           "body": "Delegation half shipped in ea59540: zero inline onclick, data-key/data-action delegation, keyboard activation on cards/rows, parent link is a real anchor; keys never reach JS-string contexts. Remaining: drawer focus management + :focus-visible (Task D). Bonus fix ad14421: --file/--json now honored before the subcommand (argparse SUPPRESS)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "Fully shipped across C+D: zero inline onclick (delegated data-key/data-action), keyboard activation, real parent anchor, dialog focus management, :focus-visible. The JS-string escaping gap is structurally closed. Commits ea59540 + 4c2c4eb + 113dfdb."
         }
       ]
     },
@@ -602,7 +607,7 @@
       "type": "Task",
       "title": "Derive board grid tracks and status colors from BOARD.statuses",
       "description": "CSS hardcodes repeat(5,...) (jira.py ~462) and 5 status color vars/maps (~380/580) while JS treats BOARD.statuses as dynamic (columns from STATUSES.map, ||'var(--muted)' fallbacks). A hand-edited statuses list (board.json is the documented source of truth) overflows the grid and renders grey columns. Generate track count and a color assignment from the status list at render time.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -614,12 +619,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T09:52:16+07:00",
-      "updated": "2026-06-06T13:18:58+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T13:18:58+07:00",
           "body": "Task D: grid + status colors generated from BOARD.statuses (no repeat(5), no all-grey unknowns)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "Grid + STATUS_COLOR generated from board statuses: auto-fill capped at --ncols (no repeat(5)), canonical statuses keep theme vars, unknowns get deterministic theme-aware --fb-1..8 vars (AA-verified both themes, mod-8 recycle documented). Commits 4c2c4eb + 113dfdb."
         }
       ]
     },
@@ -698,7 +708,7 @@
       "type": "Task",
       "title": "Drawer dialog semantics + focus management",
       "description": "Drawer opens without moving focus, no Tab trap, no focus restore, no role=dialog/aria-modal/aria-labelledby. Make it a real dialog: focus close btn on open, trap Tab, Esc closes, restore opener focus on close, :focus-visible outlines.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -710,12 +720,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T13:18:58+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T13:18:58+07:00",
           "body": "Task D starting: role=dialog, aria-modal, labelledby, focus trap/restore."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "Drawer is a real dialog: role/aria-modal/labelledby, focus to close btn on open, live-requery Tab trap, Esc, focus restore with data-key/#main fallbacks; global :focus-visible. Commits 4c2c4eb + 113dfdb."
         }
       ]
     },
@@ -724,7 +739,7 @@
       "type": "Task",
       "title": "WCAG contrast pass for badges and faint tokens",
       "description": "Measured failures: light-theme Story/Done green 2.82:1, pri-High orange 3.0:1, Bug red 3.89:1 on 14% tints; --faint (keys, epic progress) 2.65:1 light / 3.0:1 dark. Raise tint to ~24%, darken light greens and --faint, promote .ckey/.prog-n to --muted; verify >=4.5:1 computationally in both themes.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -736,12 +751,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T13:18:58+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T13:18:58+07:00",
           "body": "Task D: tint 14->24%, light-theme green/orange + faint token adjustments, computational AA verification."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "Tint 24%, retuned light greens/orange/cancel + faint both themes, .ckey/.prog-n -> muted, priority pill tinted. Verified computationally: worst 4.76 light / 5.14 dark for tokens, 4.57 worst for the new --fb palette. Commits 4c2c4eb + 113dfdb."
         }
       ]
     },
@@ -781,7 +801,7 @@
       "type": "Task",
       "title": "SKILL.md contract reconciliation (CLI table, lifecycle, multi-copy/concurrency)",
       "description": "CLI table drifted (missing --assignee/--author/--force/--file); no lifecycle guidance (reopen/cancel/comments append-only/merge conflicts); no multi-copy or concurrency story (the 2026-06-06 incident class); auto-apply tier underspecified for stale In-Progress issues. Reconcile docs with final CLI surface.",
-      "status": "To Do",
+      "status": "In Progress",
       "priority": "Medium",
       "parent": "JT-6",
       "labels": [
@@ -791,8 +811,14 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T12:02:50+07:00",
-      "comments": []
+      "updated": "2026-06-06T13:58:58+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "Task E starting: SKILL.md CLI table regen against final --help, Workflow 6 lifecycle, multi-copy/concurrency section, tier examples; schema.md + README updates."
+        }
+      ]
     },
     {
       "key": "JT-32",
@@ -824,7 +850,7 @@
       "type": "Task",
       "title": "Template polish: print styles, reduced-motion, linkify, theme sync, responsive step, search flex",
       "description": "No @media print (sticky toolbar overlaps, dark wastes ink); no prefers-reduced-motion; URLs in descriptions/comments not clickable (escape-first linkify); theme not synced across tabs/OS changes; 1100-1200px responsive gap needs a 3-col step; search input fixed at 190px should flex.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-6",
       "labels": [
@@ -836,12 +862,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:02:50+07:00",
-      "updated": "2026-06-06T13:18:58+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T13:18:58+07:00",
           "body": "Task D: print styles, reduced-motion, linkify, theme sync, responsive step, search flex."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "@media print (light tokens, hidden chrome, break-inside:avoid), prefers-reduced-motion, escape-first linkify with noopener, storage+matchMedia theme sync gated on override, auto-fill kills the 1100-1200px gap, search flexes 160-320px. Commit 4c2c4eb."
         }
       ]
     },
@@ -942,7 +973,7 @@
       "type": "Task",
       "title": "Dependency links: blocked-by with cycle rejection, next integration, drawer display",
       "description": "link KEY --blocked-by/--unblock with DFS cycle rejection; next excludes issues with open blockers and lists them separately; show prints blocked-by/blocks; drawer shows blocker chips, cards show a blocked indicator.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-35",
       "labels": [
@@ -954,7 +985,7 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T12:49:52+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
@@ -965,6 +996,11 @@
           "author": "agent",
           "at": "2026-06-06T12:49:52+07:00",
           "body": "In progress pending the Task D drawer display."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "UI half shipped: status-colored blocked-by chips in the drawer (data-key clickable), open-blocker indicator on cards/rows with title listing blockers. Python half was 025bf21/0e886de. Commit 4c2c4eb."
         }
       ]
     },
@@ -973,7 +1009,7 @@
       "type": "Task",
       "title": "Relative timestamps in the board HTML",
       "description": "Render '2d ago' style times on cards, drawer meta, comments, and footer with absolute ISO in title tooltips.",
-      "status": "In Progress",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-35",
       "labels": [
@@ -985,12 +1021,17 @@
       ],
       "assignee": "",
       "created": "2026-06-06T12:03:07+07:00",
-      "updated": "2026-06-06T13:18:58+07:00",
+      "updated": "2026-06-06T13:58:58+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-06T13:18:58+07:00",
           "body": "Task D: relative timestamps with ISO tooltips."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-06T13:58:58+07:00",
+          "body": "rel()/relSpan relative times (just now..Nw ago, date >8w; negative deltas clamp) on cards, drawer meta, comments, footer; ISO in title; single escape point. Commits 4c2c4eb + 113dfdb."
         }
       ]
     },
