@@ -28,6 +28,10 @@ examples/sample-board.json   # a filled-in example you can open via the CLI
 examples/board.html          # the rendered view of that example
 ```
 
+The **repo-local copy** of `jira.py` is preferred when working inside this repo;
+boards carry a `template_version` stamp and refuse to be operated on by an older
+CLI copy, preventing silent UI regressions.
+
 When used, the board itself lives in the repo root under:
 
 ```
@@ -46,12 +50,15 @@ When used, the board itself lives in the repo root under:
    scaffold. If a board already exists, it **loads it and leaves it untouched
    unless you ask** to change it.
 2. **Start of a session** ("continue", "keep working", "update X", "what's
-   next") → the agent reads the board, reports status, and proposes the
-   highest-priority next task *before* doing anything.
+   next") → the agent reads the board, reports status (including stale In-Progress
+   warnings), and proposes the highest-priority next task *before* doing anything.
+   Blocked issues are listed separately so they aren't accidentally scheduled.
 3. **A new problem appears** → it's captured as the right type (Epic / Story /
    Task / Bug / Sub-task) with priority, description, and a parent link.
+   Dependencies between issues are tracked with `link KEY --blocked-by OTHER`.
 4. **After work** → the issue moves to Done / In Review / Cancelled with a
-   comment recording *what actually changed*.
+   comment recording *what actually changed*. Reopening a Done or Cancelled issue
+   requires an explicit `--comment` explaining why.
 5. **End of every turn** → in a tracked repo, once the requested work is done
    the agent runs a board-reconciliation check: if the turn finished,
    advanced, or discovered work, the board is updated; if not, it stays
@@ -151,8 +158,11 @@ python3 $jira init --name "My App" --key APP --repo "github.com/me/app"
 python3 $jira add --type Epic  --title "User accounts" --priority High
 python3 $jira add --type Story --title "Sign up with email" --parent APP-1
 python3 $jira move APP-2 "in progress" --comment "Building the form."
-python3 $jira next        # what should I do?
-python3 $jira status      # board summary
+python3 $jira link APP-3 --blocked-by APP-2     # mark a dependency
+python3 $jira next        # what should I do? (blocked issues listed separately)
+python3 $jira next --json # machine-readable recommendations for scripts/agents
+python3 $jira status      # board summary (stale In-Progress issues annotated)
+python3 $jira doctor      # integrity check (12 codes, exit 1 on problems)
 python3 $jira render      # regenerate board.html
 ```
 
@@ -167,16 +177,24 @@ python3 .claude/skills/jira-tracker/scripts/jira.py --file examples/sample-board
 ## Design notes
 
 - **JSON is truth; HTML is a view.** Every mutating CLI command re-renders the
-  HTML automatically, so it's never stale.
+  HTML automatically, so it's never stale. Writes are atomic (tempfile + rename,
+  0644 permissions) and serialized by `board.lock` so concurrent agent turns
+  don't corrupt data.
 - **No dependencies.** Python 3.8+ standard library only.
 - **It travels with the repo.** `.jira/` is committed, so the board survives a
   fresh clone and is the same for everyone.
+- **`doctor` for integrity checks.** Run `python3 "$jira" doctor` after any
+  manual recovery to confirm the board is consistent (12 diagnostic codes, exit 1
+  on problems). Use `--json` for machine-readable output.
 - The HTML board has a Kanban (by-status) view and a By-Epic hierarchy view;
   epic/type/priority dropdowns (with live counts), text search, and a
   clear-filters shortcut live in a toolbar that stays pinned while you scroll.
-  Cards open in a slide-in detail drawer with the description, metadata, and
-  comment trail. Dark and light themes with a 🌙/☀️ toggle (follows your
-  system preference by default).
+  Cards open in a slide-in detail drawer with description, metadata, blocked-by
+  chips, and comment trail. URL-hash deep-links (`#KEY`) open issues directly.
+  Dark and light themes with a toggle (follows your system preference by default;
+  syncs across tabs). Print-optimized styles and reduced-motion support included.
+  Non-canonical statuses get distinct colors from an 8-hue palette rather than a
+  generic fallback.
 
 The board is local and offline; the only network use is loading two web
 fonts in the HTML, which degrades gracefully to system fonts if you're offline.

@@ -14,9 +14,9 @@ prioritized, and kept up to date across sessions. The board is one JSON file
 (`.jira/board.json`, the source of truth) plus a generated standalone HTML view
 (`.jira/board.html`) the user can open in a browser.
 
-You never hand-edit the JSON. All changes go through the bundled CLI, which
-validates input and **re-renders the HTML automatically after every change** so
-the board is never stale.
+You never hand-edit the JSON (see Workflow 6 for the one sanctioned exception).
+All changes go through the bundled CLI, which validates input and **re-renders
+the HTML automatically after every change** so the board is never stale.
 
 This skill is agent-neutral. In Claude Code it can live at
 `.claude/skills/jira-tracker/`; in Codex it can live at
@@ -34,24 +34,42 @@ alike — don't embed `python3` in the variable, since zsh won't word-split it):
 jira=<this-skill-dir>/scripts/jira.py     # then: python3 "$jira" <command> ...
 ```
 
-Commands (run `python3 "$jira" <cmd> --help` for flags):
+> **`--help` is authoritative.** Run `python3 "$jira" <cmd> --help` for the
+> full flag list of any subcommand. Global flags `--file` and `--json` work
+> **both before and after** the subcommand name.
+
+Commands:
 
 | Command | Purpose |
 |---|---|
-| `init --name N --key K --repo URL` | Create a new board |
-| `add --type T --title "..." [--priority P --parent KEY --desc "..." --labels a,b --components x --status S]` | Create an issue, prints its key |
-| `move KEY STATUS [--comment "..."]` | Change status (status is fuzzy: `prog`, `done`, `review` all work) |
-| `comment KEY "text"` | Add a comment |
-| `set KEY [--title/--desc/--priority/--type/--parent/--assignee/--labels/--components]` | Edit fields |
-| `list [--status S --type T --parent KEY --all]` | List issues (open only unless `--all`) |
-| `next [--limit N]` | Recommend what to work on next |
-| `show KEY` | Full detail of one issue |
-| `status` | One-screen board summary |
-| `render` | Force-regenerate `board.html` |
+| `init --name N --key K [--repo URL] [--force]` | Create a new board (`--force` overwrites an existing one) |
+| `add --type T --title "..." [--priority P --parent KEY --desc "..." --labels a,b --components x --status S --assignee A]` | Create an issue, prints its key; rejects blank/whitespace titles |
+| `move KEY STATUS [--comment "..."] [--author A]` | Change status (fuzzy: `prog`, `done`, `review` all work); moving **out of Done/Cancelled requires `--comment`** |
+| `comment KEY "text" [--author A]` | Append a comment (append-only — no edit/delete) |
+| `set KEY [--title/--desc/--priority/--type/--parent/--assignee/--labels/--components]` | Edit fields; rejects blank/whitespace titles; `--parent ""` clears the parent |
+| `list [--status S --type T --parent KEY --all]` | List issues (open only unless `--all`); `--parent KEY` validates the key |
+| `next [--limit N]` | Recommend what to work on; blocked issues go to a trailing "blocked:" section; annotates stale In-Progress issues with `⚠ stale Nd` |
+| `show KEY` | Full detail of one issue (shows blocked-by and blocks relationships) |
+| `status` | One-screen board summary; annotates stale In-Progress issues with `⚠ stale Nd` |
+| `doctor` | 12-code integrity scan — exits 0 if healthy, 1 if problems found |
+| `link KEY --blocked-by OTHER` | Mark KEY as blocked by OTHER (cycle-rejected, idempotent) |
+| `link KEY --unblock OTHER` | Remove OTHER from KEY's blocked_by |
+| `render` | Force-regenerate `board.html` (read-only, does not modify `board.json`) |
+
+Global flags (work before or after the subcommand):
+
+| Flag | Purpose |
+|---|---|
+| `--file PATH` | Use a board at `PATH` instead of `.jira/board.json` |
+| `--json` | Emit compact JSON to stdout — preferred for agent use (stable, no human-readable noise) |
 
 Vocabulary (use these exact words): **types** Epic, Story, Task, Bug, Sub-task ·
 **statuses** To Do, In Progress, In Review, Done, Cancelled · **priorities**
 Highest, High, Medium, Low, Lowest.
+
+An issue is **stale** when it has been In Progress for ≥ 7 days without an
+update (configurable via `STALE_DAYS`). `next` and `status` annotate stale
+issues and `status --json` lists stale keys in the `stale` array.
 
 ---
 
@@ -142,9 +160,13 @@ now", or simply being asked to work in a repo that already has a board.
 
 Do this **before** writing any code:
 
-1. `status` — get counts and what's currently In Progress.
+1. `status` — get counts and what's currently In Progress. Note stale `⚠`
+   annotations (In Progress > 7 days without update) — these may need attention.
 2. `next` — get the priority-ordered recommendation. The CLI surfaces In
    Progress items first (finish what's started), then To Do by priority.
+   Blocked issues appear in a trailing "blocked:" section — don't schedule them
+   unless the blocker is already resolved. Use `--json` if you need to process
+   the output programmatically.
 3. Briefly tell the user the state and your proposed next item, e.g.
    "PAY-2 (async schema) is in progress and PAY-4 is a Highest-priority bug —
    I'll resume PAY-2 first." Let them redirect if they want.
@@ -153,6 +175,12 @@ Do this **before** writing any code:
 
 Never start work in a tracked repo without first reading the board — the whole
 point is continuity across sessions.
+
+**Large boards:** prefer `list --status "In Progress"`, `list --type Bug`, or
+`list --parent EPIC-KEY` over unfiltered `list` to avoid scrolling. Use
+`next --limit N` to cap the recommendation list. Closed issues (Done/Cancelled)
+accumulate over time; use `list --status Done` or `list --all` only when you
+specifically need them.
 
 ---
 
@@ -221,7 +249,8 @@ worker, added unit tests" — not "done".
 Trigger: **every turn in a tracked repo** (`.jira/board.json` exists), once
 the requested work or thinking is done — regardless of which workflow (if
 any) the turn followed. Skip only if the user told you to leave the board
-alone.
+alone (this preference is **session-scoped** unless they say "always" or
+"permanently" — re-check at the next session start).
 
 Run this check silently before closing out your response:
 
@@ -253,23 +282,120 @@ Red flags — if you catch yourself thinking any of these, the check applies:
 
 ---
 
+## Workflow 6 - Lifecycle & corrections
+
+### Reopening Done or Cancelled issues
+
+```bash
+python3 "$jira" move KEY "To Do" --comment "why reopening"
+```
+
+This is a **confirm-tier** write (propose before applying). The CLI enforces
+the comment — it will error without `--comment`. The comment becomes the
+permanent audit trail entry.
+
+### Cancel, don't delete
+
+There is no `delete` command by design. If work is abandoned, move it to
+Cancelled with a comment explaining why. Cancelled issues stay on the board as
+a record.
+
+### Comments are append-only
+
+`comment KEY "text"` adds to the trail; there is no edit or delete. Keep
+comments accurate from the start — corrections must be new comments that
+acknowledge the change.
+
+### Recovery from corruption
+
+- **Corrupt or missing `board.json`:** restore from git (`git checkout HEAD -- .jira/board.json`) or run `init --force` to start fresh. Do **not** hand-edit a corrupt file to fix it; the JSON structure has interdependencies.
+- **After any recovery:** always run `doctor` to confirm the board is consistent.
+
+### Resolving merge conflicts on `board.json`
+
+`board.json` is a structured file that git may report as a conflict. This is the **one sanctioned hand-edit**: manually open the conflicted file, union both sides' issues by key (keep any issue that appears on either side), keep the higher `project.counter`, resolve other fields from the newer side, then run `render` to regenerate the HTML. Run `doctor` after to confirm.
+
+Example sequence:
+
+```bash
+# 1. Resolve the conflict in your editor as described above.
+python3 "$jira" render          # 2. regenerate board.html
+python3 "$jira" doctor          # 3. confirm integrity
+```
+
+---
+
+## Multiple copies & concurrency
+
+### Prefer the repo-local copy
+
+When a repo ships `.claude/skills/jira-tracker/scripts/jira.py`, always invoke
+that copy — not a globally-installed one. The local copy is the one whose
+`TEMPLATE_VERSION` matches the boards written in that repo. A globally-installed
+copy that is older than the repo-local one will be refused by the board's
+version guard (`error: this board was written by a newer jira.py`).
+
+```bash
+# Always resolve from the loaded skill directory:
+jira=<this-skill-dir>/scripts/jira.py
+```
+
+The version stamp is the backstop: if a mismatched copy somehow runs, it will
+refuse to operate on a board it didn't write, preventing silent data corruption.
+
+### Same-machine concurrent writes
+
+All mutating commands (`add`, `move`, `comment`, `set`, `link`, `init`) and
+`render` serialize on `<board-dir>/board.lock` using `fcntl.flock` (exclusive
+lock, POSIX). On non-POSIX systems the lock is a no-op — concurrent writes on
+Windows are not serialized at the file level. Board JSON is written atomically
+(unique tempfile + rename, 0644 permissions) so readers never see a
+half-written file.
+
+`board.lock` is transient — gitignore it (already included in the default
+`.gitignore`).
+
+### Cross-branch divergence
+
+If two branches each advance the board independently and then merge, follow the
+merge-conflict recipe in Workflow 6 above.
+
+---
+
 ## Operating principles
 
 - **Tiered board writes.** Two tiers, honoring any standing user preference
   ("just keep it updated" → apply everything; "always ask first" → confirm
   everything):
   - **Auto-apply, then report in your summary:** `move` and `comment` on
-    issues tied to this turn's work, and `render`. "Tied to this turn's
-    work" means issues that are In Progress (whether moved this session or
-    already in progress when the session opened), or issues the user or you
-    explicitly named as the subject of the turn.
+    issues directly tied to **work you actually did or advanced this turn**.
+    "This turn" means:
+    - An issue you moved to In Progress this turn, or
+    - An issue that was already In Progress when the session opened **and** you
+      actively worked on it or advanced it this turn.
+    A stale In-Progress issue that you looked at but did **not** advance this
+    turn is **not** auto-written — propose the update instead.
+
+    *Example — correct auto-apply:* You move PAY-3 to In Progress, implement
+    the feature, then move it to Done. Both moves + a closing comment are
+    auto-applied.
+
+    *Example — must propose:* You read the board and notice PAY-7 has been
+    In Progress for 12 days (stale `⚠`). You didn't touch it this turn.
+    Propose: "PAY-7 appears stale — should I add a comment or move it back to
+    To Do?"
+
   - **Confirm first:** `init` seeding, `add` (new issues), `set` (retitle,
-    re-priority, re-parent, re-type), reopening Done issues, and bulk
+    re-priority, re-parent, re-type), reopening Done/Cancelled issues, and bulk
     corrections. State the specific change(s) — keys, type, status
     transition, comment text — and wait for the user's okay.
 - **The JSON is the source of truth; the HTML is a view.** Only ever change the
-  board through the CLI, which re-renders the HTML for you. If you ever edit
-  `board.json` directly, run `render` afterward.
+  board through the CLI. If you ever hand-edit `board.json` (only the merge
+  recipe in Workflow 6 permits this), run `render` and then `doctor` afterward.
+- **Use `--json` for programmatic reads.** `list --json`, `next --json`,
+  `show KEY --json`, `status --json`, and `doctor --json` emit stable JSON
+  shapes with no human-readable noise — use these when you need to parse board
+  state in a script or multi-step agent turn.
 - **Capture first, work second.** New work becomes an issue before you act on it,
   so nothing is lost between sessions.
 - **One issue, one status truth.** Move issues as their real state changes; don't
