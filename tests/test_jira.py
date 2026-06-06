@@ -8,6 +8,8 @@ Run: python3 -m unittest discover -s tests -v
 """
 
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -428,6 +430,21 @@ class TestTemplateVersion(BoardTestCase):
         html = (self.dir / ".jira/board.html").read_text()
         self.assertIn("<!-- jira-tracker template v", html)
 
+    def test_non_int_template_version_dies(self):
+        """A string or null template_version must exit nonzero without a traceback."""
+        p = self.dir / ".jira/board.json"
+        for bad_value in ("v2", None):
+            with self.subTest(value=bad_value):
+                b = json.loads(p.read_text())
+                b["template_version"] = bad_value
+                p.write_text(json.dumps(b, indent=2) + "\n")
+                r = run(["list"], self.dir)
+                self.assertNotEqual(r.returncode, 0,
+                                    f"expected nonzero exit for template_version={bad_value!r}")
+                self.assertNotIn("Traceback", r.stderr,
+                                 f"traceback must not appear for template_version={bad_value!r}")
+                self.assertIn("error:", r.stderr)
+
 
 class TestLockFileInGitignore(unittest.TestCase):
     """JT-26: board.lock must be gitignored."""
@@ -435,6 +452,26 @@ class TestLockFileInGitignore(unittest.TestCase):
     def test_board_lock_in_gitignore(self):
         gitignore = (REPO / ".gitignore").read_text()
         self.assertIn("board.lock", gitignore)
+
+
+class TestFileModes(BoardTestCase):
+    """write_atomic must produce 0644 files, not 0600 (mkstemp default)."""
+
+    @unittest.skipIf(os.name != "posix", "POSIX-only file permission test")
+    def test_board_json_mode_is_0644_after_add(self):
+        self.cli("add", "--type", "Task", "--title", "Permissions check")
+        p = self.dir / ".jira/board.json"
+        mode = stat.S_IMODE(os.stat(p).st_mode)
+        self.assertEqual(mode, 0o644,
+                         f"board.json mode is {oct(mode)}, expected 0o644")
+
+    @unittest.skipIf(os.name != "posix", "POSIX-only file permission test")
+    def test_board_html_mode_is_0644_after_add(self):
+        self.cli("add", "--type", "Task", "--title", "Permissions check HTML")
+        p = self.dir / ".jira/board.html"
+        mode = stat.S_IMODE(os.stat(p).st_mode)
+        self.assertEqual(mode, 0o644,
+                         f"board.html mode is {oct(mode)}, expected 0o644")
 
 
 if __name__ == "__main__":

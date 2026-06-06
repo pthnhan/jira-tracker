@@ -95,10 +95,13 @@ def load(args) -> dict:
             board = json.load(fh)
     except json.JSONDecodeError as e:
         die(f"could not parse {p} ({e}) — fix the JSON or restore it from git")
-    if board.get("template_version", 0) > TEMPLATE_VERSION:
+    stamp = board.get("template_version", 0)
+    if not isinstance(stamp, int):
+        die(f"board has a non-integer template_version ({stamp!r}) — fix the JSON or restore it from git")
+    if stamp > TEMPLATE_VERSION:
         die(
             f"this board was written by a newer jira.py (template_version "
-            f"{board['template_version']} > {TEMPLATE_VERSION}). "
+            f"{stamp} > {TEMPLATE_VERSION}). "
             f"Run the repo-local copy at .claude/skills/jira-tracker/scripts/jira.py"
         )
     return board
@@ -110,6 +113,7 @@ def write_atomic(path: Path, text: str):
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
+        os.chmod(tmp_name, 0o644)
         os.replace(tmp_name, path)
     except Exception:
         try:
@@ -309,14 +313,13 @@ def cmd_set(args):
     print(f"{issue['key']}: updated {', '.join(changed)}")
 
 
-def _matches(issue, board, args):
+def _matches(issue, args, canonical_parent=None):
     if getattr(args, "status", None) and issue["status"] != fuzzy(args.status, STATUSES, "status"):
         return False
     if getattr(args, "type", None) and issue["type"] != fuzzy(args.type, TYPES, "type"):
         return False
-    if getattr(args, "parent", None):
-        canonical = find(board, args.parent)["key"]  # dies loudly on unknown key
-        if issue.get("parent") != canonical:
+    if canonical_parent is not None:
+        if issue.get("parent") != canonical_parent:
             return False
     return True
 
@@ -331,9 +334,10 @@ def _sort_key(issue):
 
 def cmd_list(args):
     board = load(args)
+    canonical_parent = None
     if getattr(args, "parent", None):
-        find(board, args.parent)  # validate + die loudly on unknown key before filtering
-    issues = [i for i in board["issues"] if _matches(i, board, args)]
+        canonical_parent = find(board, args.parent)["key"]  # validate + die loudly on unknown key before filtering
+    issues = [i for i in board["issues"] if _matches(i, args, canonical_parent)]
     if not args.all and not args.status:  # an explicit --status filter implies --all
         issues = [i for i in issues if i["status"] in OPEN_STATUSES]
     issues.sort(key=_sort_key)
@@ -406,9 +410,9 @@ def cmd_status(args):
 
 def cmd_render(args):
     p = board_path(args)
-    board = load(args)  # read-only: regenerate the view without touching the JSON
     out = p.with_name("board.html")
     with board_lock(p):
+        board = load(args)  # read-only: regenerate the view without touching the JSON
         render_html(board, out)
     print(f"rendered -> {out}")
 
