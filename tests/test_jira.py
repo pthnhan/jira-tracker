@@ -412,6 +412,13 @@ class TestDynamicStatusCss(BoardTestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return (self.dir / ".jira/board.html").read_text()
 
+    def _scolor_line(self, html):
+        """Extract the STATUS_COLOR=... assignment line injected into the HTML."""
+        import re
+        m = re.search(r'const STATUS_COLOR=\{[^;]+\};', html)
+        self.assertIsNotNone(m, "STATUS_COLOR line not found in rendered HTML")
+        return m.group(0)
+
     def test_six_statuses_get_six_columns_and_distinct_color(self):
         board = json.loads((self.dir / ".jira/board.json").read_text())
         board["statuses"] = ["To Do", "In Progress", "In Review",
@@ -421,11 +428,26 @@ class TestDynamicStatusCss(BoardTestCase):
         # (a) column count is data-driven to 6 (injected count), never repeat(5,...)
         self.assertNotIn("repeat(5", html)
         self.assertIn("--ncols:6", html)
-        # (b) the 6th status got a concrete distinct hue, not the grey fallback
-        self.assertIn('"Blocked": "#', html)
+        # (b) unknown status uses a fallback CSS var (--fb-N), not a raw hex or --muted
+        import re
+        self.assertRegex(html, r'"Blocked":\s*"var\(--fb-\d\)"')
         self.assertNotIn('"Blocked": "var(--muted)"', html)
         # canonical statuses still ride the theme palette vars
         self.assertIn('"To Do": "var(--todo)"', html)
+
+    def test_six_statuses_color_map_is_deterministic(self):
+        """Rendering the same board twice must inject identical STATUS_COLOR maps."""
+        board = json.loads((self.dir / ".jira/board.json").read_text())
+        board["statuses"] = ["To Do", "In Progress", "In Review",
+                             "Blocked", "Done", "Cancelled"]
+        self._write_board(board)
+        html1 = self._render()
+        html2 = self._render()
+        self.assertEqual(
+            self._scolor_line(html1),
+            self._scolor_line(html2),
+            "STATUS_COLOR map is non-deterministic across renders",
+        )
 
     def test_grid_is_autofill_capable_no_literal_five(self):
         # Even the default 5-status board must not hardcode repeat(5,...).

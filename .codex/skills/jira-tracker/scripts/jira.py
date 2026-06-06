@@ -733,27 +733,27 @@ CANONICAL_STATUS_VAR = {
     "Done": "var(--done)",
     "Cancelled": "var(--cancel)",
 }
-# Deterministic fallback hues (8) for any non-canonical status a board may carry,
-# so a hand-added 6th status gets a distinct colour instead of the grey --muted
-# fallback.  Cycled by appearance order; chosen to read on both themes.
-FALLBACK_STATUS_HUES = [
-    "#d6336c", "#1098ad", "#f08c00", "#7048e8",
-    "#0ca678", "#e8590c", "#4263eb", "#ae3ec9",
-]
+# Deterministic fallback palette (8 slots) for any non-canonical status.
+# Each slot is a CSS var defined per-theme in both :root blocks below so that
+# the text colour vs tinted-pill AND text vs card-bg both pass WCAG AA (≥4.5:1).
+# A 9th+ unknown status recycles colours (slot index wraps mod 8).
+FALLBACK_STATUS_COUNT = 8
 
 
 def status_color_map(statuses) -> dict:
     """Map every board status to a CSS colour string.
 
     Canonical names keep their theme palette var; unknown statuses are assigned
-    a distinct, deterministic fallback hue by the order in which they appear."""
+    a distinct, deterministic fallback CSS var (--fb-1..--fb-8) by the order in
+    which they appear, wrapping every 8."""
     out = {}
     fb_i = 0
     for s in statuses:
         if s in CANONICAL_STATUS_VAR:
             out[s] = CANONICAL_STATUS_VAR[s]
         else:
-            out[s] = FALLBACK_STATUS_HUES[fb_i % len(FALLBACK_STATUS_HUES)]
+            slot = (fb_i % FALLBACK_STATUS_COUNT) + 1
+            out[s] = f"var(--fb-{slot})"
             fb_i += 1
     return out
 
@@ -812,6 +812,8 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
     --todo:#8b93a7; --prog:#d29922; --review:#58a6ff; --done:#3fb950; --cancel:#b08585;
     --epic:#a371f7; --story:#3fb950; --task:#58a6ff; --bug:#f85149; --sub:#8b93a7;
     --pri-highest:#f85149; --pri-high:#f0883e; --pri-medium:#d29922; --pri-low:#3fb950; --pri-lowest:#8b93a7;
+    --fb-1:#ff7eb3; --fb-2:#5ccfe6; --fb-3:#ffb347; --fb-4:#b39ddb;
+    --fb-5:#69db7c; --fb-6:#ff8c69; --fb-7:#74b9ff; --fb-8:#e879f9;
     --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
     --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
     color-scheme:dark;
@@ -830,6 +832,8 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
     --todo:#64748b; --prog:#b45309; --review:#2563eb; --done:#0f7a37; --cancel:#8a5757;
     --epic:#7c3aed; --story:#0f7a37; --task:#2563eb; --bug:#dc2626; --sub:#64748b;
     --pri-highest:#dc2626; --pri-high:#c2410c; --pri-medium:#b45309; --pri-low:#0f7a37; --pri-lowest:#64748b;
+    --fb-1:#9d174d; --fb-2:#0a5565; --fb-3:#92400e; --fb-4:#5b21b6;
+    --fb-5:#14532d; --fb-6:#9a3412; --fb-7:#1e3a8a; --fb-8:#86198f;
     color-scheme:light;
   }
   *{box-sizing:border-box}
@@ -1044,7 +1048,7 @@ HTML_TEMPLATE = r"""<!-- jira-tracker template v2 -->
   <button class="theme-btn" id="ftheme" title="toggle light/dark theme">🌙</button>
 </nav>
 
-<main id="main"></main>
+<main id="main" tabindex="-1"></main>
 <footer id="foot"></footer>
 
 <div class="scrim" id="scrim"></div>
@@ -1067,9 +1071,10 @@ const tint=(c,p)=>`color-mix(in srgb, ${c} ${p}%, transparent)`;
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const trunc=(s,n)=>{s=s==null?'':String(s);return s.length>n?s.slice(0,n-1)+'…':s};
 // Relative time (JT-39): "just now" / "Nm/h/d/w ago", date for >8 weeks.
+// Returns a raw (un-escaped) string; relSpan is the single escape point.
 function rel(ts){
   if(!ts)return '';
-  const t=Date.parse(ts); if(isNaN(t))return esc(ts);
+  const t=Date.parse(ts); if(isNaN(t))return String(ts);
   let s=Math.floor((Date.now()-t)/1000); if(s<0)s=0;
   const m=Math.floor(s/60),h=Math.floor(s/3600),d=Math.floor(s/86400),w=Math.floor(s/604800);
   if(s<45)return 'just now';
@@ -1077,9 +1082,10 @@ function rel(ts){
   if(h<24)return h+'h ago';
   if(d<7)return d+'d ago';
   if(w<=8)return w+'w ago';
-  try{return new Date(t).toISOString().slice(0,10);}catch(e){return esc(ts);}
+  try{return new Date(t).toISOString().slice(0,10);}catch(e){return String(ts);}
 }
 // A relative-time element that exposes the full ISO stamp on hover.
+// esc() is called here and ONLY here — rel() returns the raw string.
 const relSpan=ts=>`<span title="${esc(ts)}">${esc(rel(ts))}</span>`;
 // Linkify http(s) URLs in ALREADY-ESCAPED text (JT-33). Run AFTER esc() so the
 // surrounding body stays escaped and only real URLs become anchors.
@@ -1331,7 +1337,7 @@ function closeDrawer(){
   if(wasOpen){
     let tgt=(drawerOpener&&document.body.contains(drawerOpener))?drawerOpener:null;
     if(!tgt&&openerKey)tgt=document.querySelector(`[data-key="${cssEsc(openerKey)}"]`);
-    if(tgt&&tgt.focus)tgt.focus();else if(document.body.focus)document.body.focus();
+    if(tgt&&tgt.focus)tgt.focus();else document.getElementById('main').focus();
   }
   drawerOpener=null;openerKey='';
   syncHash();
