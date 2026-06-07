@@ -1350,6 +1350,79 @@ class TestLinkUnblockLastElement(BoardTestCase):
 
 
 # --------------------------------------------------------------------------- #
+# JT-17 — In Review surfacing in next/status + set-project command
+# --------------------------------------------------------------------------- #
+
+class TestInReviewSurfacing(BoardTestCase):
+    """JT-17: next and status call out In Review issues as awaiting human review."""
+
+    def setUp(self):
+        super().setUp()
+        self.cli("add", "--type", "Task", "--title", "Reviewed work")   # TST-1
+        self.cli("move", "TST-1", "review")
+
+    def test_next_text_lists_in_review_section(self):
+        r = self.cli("next")
+        self.assertIn("in review (awaiting human review):", r.stdout)
+        self.assertIn("TST-1", r.stdout)
+        # with nothing else actionable, the existing message is preserved
+        self.assertIn("nothing actionable", r.stdout)
+
+    def test_next_json_has_in_review_keys(self):
+        data = json.loads(self.cli("next", "--json").stdout)
+        self.assertEqual(data["in_review"], ["TST-1"])
+        self.assertEqual(data["recommendations"], [])
+
+    def test_next_shows_recommendations_and_in_review_together(self):
+        self.cli("add", "--type", "Task", "--title", "Live work")        # TST-2
+        r = self.cli("next")
+        self.assertIn("recommended next:", r.stdout)
+        self.assertIn("TST-2", r.stdout)
+        self.assertIn("in review (awaiting human review):", r.stdout)
+        self.assertNotIn("nothing actionable", r.stdout)
+
+    def test_status_text_lists_in_review_section(self):
+        r = self.cli("status")
+        self.assertIn("in review (awaiting human review):", r.stdout)
+        self.assertIn("TST-1", r.stdout)
+
+    def test_status_json_has_in_review_keys(self):
+        data = json.loads(self.cli("status", "--json").stdout)
+        self.assertEqual(data["in_review"], ["TST-1"])
+
+
+class TestSetProject(BoardTestCase):
+    """JT-17: edit project fields (name, repo) after init via set-project."""
+
+    def test_updates_name_and_repo(self):
+        r = self.cli("set-project", "--name", "Renamed", "--repo", "github.com/me/renamed")
+        self.assertIn("updated", r.stdout)
+        p = self.board()["project"]
+        self.assertEqual(p["name"], "Renamed")
+        self.assertEqual(p["repo"], "github.com/me/renamed")
+        # key is intentionally not editable — issue keys derive from it
+        self.assertEqual(p["key"], "TST")
+
+    def test_clears_repo_with_empty_string(self):
+        self.cli("set-project", "--repo", "github.com/me/x")
+        self.cli("set-project", "--repo", "")
+        self.assertEqual(self.board()["project"]["repo"], "")
+
+    def test_rejects_blank_name(self):
+        r = self.cli("set-project", "--name", "   ", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.board()["project"]["name"], "Test")
+
+    def test_requires_at_least_one_flag(self):
+        r = self.cli("set-project", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_rerenders_html_with_new_name(self):
+        self.cli("set-project", "--name", "Renamed Board")
+        self.assertIn("Renamed Board", (self.dir / ".jira/board.html").read_text())
+
+
+# --------------------------------------------------------------------------- #
 # JT-25/JT-45 — artifact-sync: every committed json→html pair must match template
 # --------------------------------------------------------------------------- #
 

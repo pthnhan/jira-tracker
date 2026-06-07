@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-07T16:41:19+07:00",
+    "updated": "2026-06-07T16:58:25+07:00",
     "counter": 47
   },
   "types": [
@@ -404,14 +404,14 @@
       "type": "Task",
       "title": "Board view enhancements: epic progress rollup, surface In Review items",
       "description": "By-Epic view could show x/y done per epic; next/status could call out In Review items as awaiting human review. Also: no CLI command to edit project fields (e.g. repo URL) after init.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Low",
       "parent": null,
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:18+07:00",
-      "updated": "2026-06-06T14:39:23+07:00",
+      "updated": "2026-06-07T16:58:25+07:00",
       "comments": [
         {
           "author": "agent",
@@ -422,6 +422,16 @@
           "author": "agent",
           "at": "2026-06-06T14:39:23+07:00",
           "body": "Partial overlap shipped in the v2 template work: per-epic progress rollup now exists (transitive done/total bar with overall-progress tooltip, JT-21/22). Remaining scope to evaluate: any further In-Review surfacing beyond the column + stats chips."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:54:27+07:00",
+          "body": "Implementing remaining scope: (1) next/status call out In Review issues as awaiting human review (text + --json), (2) new set-project command to edit project name/repo after init (key excluded — issue keys derive from it). TDD: tests first."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:58:25+07:00",
+          "body": "Remaining scope shipped: (1) next and status now call out In Review issues in an 'in review (awaiting human review)' section, text + --json (new in_review key in both shapes); the nothing-actionable message is preserved alongside it. (2) New set-project command edits --name/--repo after init ('' clears repo; blank name rejected; key not editable since issue keys derive from it; save re-stamps project.updated and re-renders). 10 new tests (TDD red-green), 148/148 green. Docs updated: SKILL.md command table, schema.md JSON shapes, README example — both mirrors synced. Epic progress rollup half was already delivered by JT-19/21/22."
         }
       ]
     },

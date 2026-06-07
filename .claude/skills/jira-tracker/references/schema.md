@@ -91,8 +91,8 @@ human-readable headers or decorations). Recommended for agent programmatic use.
 |---|---|
 | `list --json` | `{"issues": [...]}` — array of full issue objects matching the current filter |
 | `show KEY --json` | full issue object (same fields as in `board.json`) |
-| `status --json` | `{"project": {...}, "counts": {status: n, ...}, "total": n, "in_progress": [key, ...], "stale": [key, ...]}` |
-| `next --json` | `{"recommendations": [{issue object}, ...], "blocked": [{"key": ..., "blocked_by_open": [key, ...]}, ...]}` |
+| `status --json` | `{"project": {...}, "counts": {status: n, ...}, "total": n, "in_progress": [key, ...], "in_review": [key, ...], "stale": [key, ...]}` |
+| `next --json` | `{"recommendations": [{issue object}, ...], "blocked": [{"key": ..., "blocked_by_open": [key, ...]}, ...], "in_review": [key, ...]}` |
 | `doctor --json` | `{"problems": [{"code": "...", "key": "...", "message": "..."}, ...]}` — empty array if healthy |
 
 ## `doctor` diagnostic codes

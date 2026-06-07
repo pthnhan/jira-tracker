@@ -48,9 +48,10 @@ Commands:
 | `comment KEY "text" [--author A]` | Append a comment (append-only — no edit/delete) |
 | `set KEY [--title/--desc/--priority/--type/--parent/--assignee/--labels/--components]` | Edit fields; rejects blank/whitespace titles; `--parent ""` clears the parent |
 | `list [--status S --type T --parent KEY --all]` | List issues (open only unless `--all`); `--parent KEY` validates the key |
-| `next [--limit N]` | Recommend what to work on; blocked issues go to a trailing "blocked:" section; annotates stale In-Progress issues with `⚠ stale Nd` |
+| `next [--limit N]` | Recommend what to work on; blocked issues go to a trailing "blocked:" section; In Review issues are called out as awaiting human review; annotates stale In-Progress issues with `⚠ stale Nd` |
 | `show KEY` | Full detail of one issue (shows blocked-by and blocks relationships) |
-| `status` | One-screen board summary; annotates stale In-Progress issues with `⚠ stale Nd` |
+| `status` | One-screen board summary; lists In Review issues as awaiting human review; annotates stale In-Progress issues with `⚠ stale Nd` |
+| `set-project [--name N --repo URL]` | Edit project fields after init; `--repo ""` clears the URL; the key is not editable (issue keys derive from it) |
 | `doctor` | 12-code integrity scan — exits 0 if healthy, 1 if problems found |
 | `link KEY --blocked-by OTHER` | Mark KEY as blocked by OTHER (cycle-rejected, idempotent) |
 | `link KEY --unblock OTHER` | Remove OTHER from KEY's blocked_by |

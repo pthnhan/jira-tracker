@@ -160,7 +160,8 @@ python3 "$jira" add --type Epic  --title "User accounts" --priority High
 python3 "$jira" add --type Story --title "Sign up with email" --parent APP-1
 python3 "$jira" move APP-2 "in progress" --comment "Building the form."
 python3 "$jira" link APP-3 --blocked-by APP-2   # mark a dependency
-python3 "$jira" next        # what should I do? (blocked issues listed separately)
+python3 "$jira" set-project --repo "github.com/me/app2"   # edit project fields later
+python3 "$jira" next        # what should I do? (blocked + in-review listed separately)
 python3 "$jira" next --json # machine-readable recommendations for scripts/agents
 python3 "$jira" status      # board summary (stale In-Progress issues annotated)
 python3 "$jira" doctor      # integrity check (12 codes, exit 1 on problems)

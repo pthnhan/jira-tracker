@@ -337,6 +337,26 @@ def cmd_set(args):
     print(f"{issue['key']}: updated {', '.join(changed)}")
 
 
+def cmd_set_project(args):
+    """Edit project fields after init (JT-17). The key is deliberately NOT
+    editable — every issue key derives from it."""
+    p = board_path(args)
+    with board_lock(p):
+        board = load(args)
+        changed = []
+        if args.name is not None:
+            name = args.name.strip()
+            if not name:
+                die("project name must not be empty")
+            board["project"]["name"] = name; changed.append("name")
+        if args.repo is not None:
+            board["project"]["repo"] = args.repo.strip(); changed.append("repo")
+        if not changed:
+            die("nothing to set — pass --name and/or --repo")
+        save(board, args)  # save stamps project.updated and re-renders the HTML
+    print(f"project: updated {', '.join(changed)}")
+
+
 def _matches(issue, args, canonical_parent=None):
     if getattr(args, "status", None) and issue["status"] != fuzzy(args.status, STATUSES, "status"):
         return False
@@ -400,12 +420,15 @@ def cmd_next(args):
             candidates.append(i)
     candidates.sort(key=_sort_key)
     top = candidates[: args.limit]
+    # In Review items await a human, not the agent — call them out separately (JT-17).
+    in_review = sorted((i for i in board["issues"] if i["status"] == "In Review"),
+                       key=_sort_key)
     if getattr(args, "json", False):
-        print(json.dumps({"recommendations": top, "blocked": blocked_list}, ensure_ascii=False))
+        print(json.dumps({"recommendations": top, "blocked": blocked_list,
+                          "in_review": [i["key"] for i in in_review]}, ensure_ascii=False))
         return
     if not top and not blocked_list:
         print("nothing actionable — all work is Done, Cancelled, or In Review.")
-        return
     if top:
         print("recommended next:\n")
         for n, i in enumerate(top, 1):
@@ -421,6 +444,10 @@ def cmd_next(args):
                 for k in entry["blocked_by_open"]
             )
             print(f"  {entry['key']:<8} blocked by: {blk_str}")
+    if in_review:
+        print("\nin review (awaiting human review):\n")
+        for i in in_review:
+            print(f"  {i['key']:<8} {i['type']}: {i['title']}")
 
 
 def cmd_show(args):
@@ -466,6 +493,7 @@ def cmd_status(args):
     for i in issues:
         by_status[i["status"]] = by_status.get(i["status"], 0) + 1
     in_prog = [i for i in issues if i["status"] == "In Progress"]
+    in_review = sorted((i for i in issues if i["status"] == "In Review"), key=_sort_key)
     stale_keys = [i["key"] for i in in_prog if _is_stale(i)]
     if getattr(args, "json", False):
         print(json.dumps({
@@ -475,6 +503,7 @@ def cmd_status(args):
             "counts": {s: by_status.get(s, 0) for s in STATUSES},
             "total": len(issues),
             "in_progress": [i["key"] for i in in_prog],
+            "in_review": [i["key"] for i in in_review],
             "stale": stale_keys,
         }, ensure_ascii=False))
         return
@@ -490,6 +519,10 @@ def cmd_status(args):
             sd = _stale_days(i)
             stale_note = f"  ⚠ stale {sd}d" if sd >= STALE_DAYS else ""
             print(f"  {i['key']:<8} {i['title']}{stale_note}")
+    if in_review:
+        print("\nin review (awaiting human review):")
+        for i in in_review:
+            print(f"  {i['key']:<8} {i['title']}")
 
 
 def cmd_doctor(args):
@@ -1537,6 +1570,11 @@ def build_parser():
     s.add_argument("--type"); s.add_argument("--parent"); s.add_argument("--assignee")
     s.add_argument("--labels"); s.add_argument("--components")
     s.set_defaults(func=cmd_set)
+
+    s = sub.add_parser("set-project", help="edit project fields after init (name, repo)", parents=[common])
+    s.add_argument("--name", help="new project name")
+    s.add_argument("--repo", help="new repo URL ('' clears it)")
+    s.set_defaults(func=cmd_set_project)
 
     s = sub.add_parser("list", help="list issues (open by default)", parents=[common])
     s.add_argument("--status"); s.add_argument("--type"); s.add_argument("--parent")
