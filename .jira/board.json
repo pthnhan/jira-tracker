@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-07T16:40:13+07:00",
+    "updated": "2026-06-07T16:41:19+07:00",
     "counter": 47
   },
   "types": [
@@ -1109,7 +1109,7 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-07T16:08:16+07:00",
-      "updated": "2026-06-07T16:40:13+07:00",
+      "updated": "2026-06-07T16:41:19+07:00",
       "comments": [
         {
           "author": "agent",
@@ -1120,6 +1120,11 @@
           "author": "agent",
           "at": "2026-06-07T16:40:13+07:00",
           "body": "All six children shipped: 3 template bugs fixed (linkify, q trim, hash churn), artifact-sync test extended to .jira pair, template cleanups landed, docs wording aligned. 138/138 tests green; mirrors synced; both artifacts regenerated."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:41:19+07:00",
+          "body": "Follow-up fallout: rendering examples/sample-board.json created examples/board.lock which slipped into the epic commit — untracked it and generalized .gitignore from .jira/board.lock to board.lock anywhere (render creates the lock next to whatever board file it operates on). Commit 371e17a."
         }
       ]
     },
