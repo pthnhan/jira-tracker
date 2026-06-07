@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-07T16:58:25+07:00",
+    "updated": "2026-06-07T17:03:43+07:00",
     "counter": 47
   },
   "types": [
@@ -389,15 +389,21 @@
       "type": "Task",
       "title": "Add LICENSE file",
       "description": "README positions the repo as a shareable template; no license present.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Low",
       "parent": null,
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-04T15:16:18+07:00",
-      "updated": "2026-06-04T15:16:18+07:00",
-      "comments": []
+      "updated": "2026-06-07T17:03:43+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T17:03:43+07:00",
+          "body": "Added MIT LICENSE (copyright 2026 Nhan Thanh Phan) — user-selected over Apache-2.0/proprietary. Standard MIT text, no modifications."
+        }
+      ]
     },
     {
       "key": "JT-17",
