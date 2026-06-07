@@ -1350,52 +1350,57 @@ class TestLinkUnblockLastElement(BoardTestCase):
 
 
 # --------------------------------------------------------------------------- #
-# JT-25 — artifact-sync: committed examples/board.html must match template
+# JT-25/JT-45 — artifact-sync: every committed json→html pair must match template
 # --------------------------------------------------------------------------- #
 
 class TestArtifactSync(unittest.TestCase):
-    """JT-25: the committed examples/board.html must be byte-identical to a fresh
-    render of examples/sample-board.json.  A stale artifact fails the suite."""
+    """JT-25/JT-45: each committed (board json → board.html) pair must be
+    byte-identical to a fresh render of its JSON.  A stale artifact fails the
+    suite — examples/ and the repo's own .jira/ board alike."""
 
-    SAMPLE_JSON = REPO / "examples/sample-board.json"
-    COMMITTED_HTML = REPO / "examples/board.html"
+    PAIRS = [
+        (REPO / "examples/sample-board.json", REPO / "examples/board.html"),
+        (REPO / ".jira/board.json", REPO / ".jira/board.html"),
+    ]
 
-    def test_examples_board_html_matches_rendered_template(self):
-        """Render sample-board.json in a temp dir and assert byte-identity with
-        the committed examples/board.html.  Also asserts sample-board.json is
-        not modified by render (read-only contract)."""
+    def test_committed_board_html_matches_rendered_template(self):
+        """Render each pair's JSON in a temp dir and assert byte-identity with
+        its committed HTML.  Also asserts render does not modify the JSON
+        (read-only contract)."""
         import shutil
 
-        orig_json_bytes = self.SAMPLE_JSON.read_bytes()
-        committed_html_bytes = self.COMMITTED_HTML.read_bytes()
+        for src_json, committed_html in self.PAIRS:
+            with self.subTest(pair=str(src_json.parent.relative_to(REPO))):
+                orig_json_bytes = src_json.read_bytes()
+                committed_html_bytes = committed_html.read_bytes()
 
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_dir = Path(tmp)
-            # render writes board.html NEXT TO the board file
-            tmp_json = tmp_dir / "sample-board.json"
-            shutil.copy2(self.SAMPLE_JSON, tmp_json)
+                with tempfile.TemporaryDirectory() as tmp:
+                    tmp_dir = Path(tmp)
+                    # render writes board.html NEXT TO the board file
+                    tmp_json = tmp_dir / src_json.name
+                    shutil.copy2(src_json, tmp_json)
 
-            r = run(["render", "--file", str(tmp_json)], tmp_dir)
-            self.assertEqual(r.returncode, 0,
-                             f"render failed: {r.stderr}")
+                    r = run(["render", "--file", str(tmp_json)], tmp_dir)
+                    self.assertEqual(r.returncode, 0,
+                                     f"render failed: {r.stderr}")
 
-            # Verify render did NOT mutate the JSON input
-            after_json_bytes = tmp_json.read_bytes()
-            self.assertEqual(
-                orig_json_bytes, after_json_bytes,
-                "render mutated sample-board.json (must be read-only on the JSON)",
-            )
+                    # Verify render did NOT mutate the JSON input
+                    after_json_bytes = tmp_json.read_bytes()
+                    self.assertEqual(
+                        orig_json_bytes, after_json_bytes,
+                        f"render mutated {src_json.name} (must be read-only on the JSON)",
+                    )
 
-            # Verify rendered HTML is byte-identical to the committed artifact
-            tmp_html = tmp_dir / "board.html"
-            self.assertTrue(tmp_html.exists(),
-                            "render did not produce board.html next to the board file")
-            rendered_bytes = tmp_html.read_bytes()
-            self.assertEqual(
-                rendered_bytes, committed_html_bytes,
-                "examples/board.html is stale — re-run: "
-                "render examples/sample-board.json and commit the result",
-            )
+                    # Verify rendered HTML is byte-identical to the committed artifact
+                    tmp_html = tmp_dir / "board.html"
+                    self.assertTrue(tmp_html.exists(),
+                                    "render did not produce board.html next to the board file")
+                    rendered_bytes = tmp_html.read_bytes()
+                    self.assertEqual(
+                        rendered_bytes, committed_html_bytes,
+                        f"{committed_html.relative_to(REPO)} is stale — re-run: "
+                        f"render --file {src_json.relative_to(REPO)} and commit the result",
+                    )
 
 
 if __name__ == "__main__":

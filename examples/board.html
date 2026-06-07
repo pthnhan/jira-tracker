@@ -66,8 +66,7 @@
   /* Visible keyboard-focus ring on every interactive element (JT-28). Uses the
      theme --focus var so it reads on both palettes; mouse focus stays quiet. */
   :focus{outline:none}
-  .card:focus-visible,.row:focus-visible,.epic-head:focus-visible,a:focus-visible,
-  button:focus-visible,select:focus-visible,input:focus-visible,[data-key]:focus-visible,
+  a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,
   [tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px;
     border-radius:8px}
 
@@ -233,7 +232,7 @@
       --ink:#111; --muted:#333; --faint:#555; color-scheme:light}
     body{background:#fff!important;background-image:none!important}
     .toolbar{position:static!important;display:none!important}
-    .theme-btn,.seg,select,input[type="search"],.clear-btn,.mini-stats,#sentinel{display:none!important}
+    #sentinel{display:none!important} /* toolbar children are hidden with it above */
     .scrim,.drawer{display:none!important}
     .cols{grid-template-columns:repeat(2,1fr)!important}
     .card,.row,.epic-group{break-inside:avoid;page-break-inside:avoid;box-shadow:none!important}
@@ -308,15 +307,27 @@ function rel(ts){
 // esc() is called here and ONLY here — rel() returns the raw string.
 const relSpan=ts=>`<span title="${esc(ts)}">${esc(rel(ts))}</span>`;
 // Linkify http(s) URLs in ALREADY-ESCAPED text (JT-33). Run AFTER esc() so the
-// surrounding body stays escaped and only real URLs become anchors.
+// surrounding body stays escaped and only real URLs become anchors. In escaped
+// text every literal "&" is an entity: keep &amp; (a real "&") inside the URL
+// but stop at &quot;/&gt;/&#39;/&lt;, and peel trailing punctuation plus any
+// unbalanced ")" out of the link (JT-42).
 function linkify(escaped){
-  return escaped.replace(/https?:\/\/[^\s<]+/g,u=>`<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+  return escaped.replace(/https?:\/\/(?:[^\s<&]|&amp;)+/g,u=>{
+    let t='';
+    for(;;){
+      if(/[.,;:!?]$/.test(u)){t=u.slice(-1)+t;u=u.slice(0,-1);continue;}
+      if(u.endsWith(')')&&(u.match(/\(/g)||[]).length<(u.match(/\)/g)||[]).length){t=')'+t;u=u.slice(0,-1);continue;}
+      break;
+    }
+    return `<a href="${u}" target="_blank" rel="noopener">${u}</a>`+t;
+  });
 }
 // Open blockers of an issue (blocker exists and is not Done/Cancelled).
 const openBlockers=i=>(i.blocked_by||[]).filter(k=>byKey.has(k)&&!CLOSED.has(byKey.get(k).status));
 let view='board', fEpic='', fType='', fPri='', q='', openKey='';
 
-// Transitive epic membership, rebuilt once per render pass (JT-22).
+// Transitive epic membership (JT-22). The embedded board never changes in the
+// browser, so the index is built ONCE at load (JT-46).
 // byKey: key -> issue;  EPIC_OF: key -> nearest Epic ancestor key (or undefined);
 // EPICS: the Epic issues in board order.
 const byKey=new Map(BOARD.issues.map(i=>[i.key,i]));
@@ -334,6 +345,7 @@ function buildEpicIndex(){
     if(found)EPIC_OF.set(i.key,found);
   }
 }
+buildEpicIndex();
 const epicOf=i=>EPIC_OF.get(i.key);
 const isOrphan=i=>i.type!=='Epic'&&!EPIC_OF.has(i.key);
 function matchSearch(i){
@@ -356,12 +368,29 @@ function passes(i,skip){
   return (skip==='epic'||matchEpic(i))&&passesFacets(i,skip);
 }
 const visible=()=>BOARD.issues.filter(i=>passes(i));
+// One bucketing pass per render (JT-46): every epic's transitive members are
+// collected once instead of re-scanning BOARD.issues per epic per consumer.
+// MEMBERS: epic key -> members passing the non-epic facets (JT-21 semantics —
+// epicOf never points at the issue itself); MEMBERS_ALL: same but unfiltered
+// (progress rollup); ORPHANS: facet-passing non-epics with no epic ancestor.
+let MEMBERS=new Map(), MEMBERS_ALL=new Map(), ORPHANS=[];
+function buildMembership(){
+  MEMBERS=new Map();MEMBERS_ALL=new Map();ORPHANS=[];
+  for(const i of BOARD.issues){
+    const ek=epicOf(i);
+    if(ek){
+      if(!MEMBERS_ALL.has(ek))MEMBERS_ALL.set(ek,[]);
+      MEMBERS_ALL.get(ek).push(i);
+      if(passesFacets(i)){
+        if(!MEMBERS.has(ek))MEMBERS.set(ek,[]);
+        MEMBERS.get(ek).push(i);
+      }
+    }else if(isOrphan(i)&&passesFacets(i))ORPHANS.push(i);
+  }
+}
 // Members of an epic that pass the non-epic facets, EXCLUDING the epic itself (JT-21).
 // '__none__' counts orphans passing the same facets.
-function memberCount(ek){
-  if(ek==='__none__')return BOARD.issues.filter(i=>isOrphan(i)&&passesFacets(i)).length;
-  return BOARD.issues.filter(i=>i.key!==ek&&epicOf(i)===ek&&passesFacets(i)).length;
-}
+const memberCount=ek=>ek==='__none__'?ORPHANS.length:(MEMBERS.get(ek)||[]).length;
 
 function header(){
   const p=BOARD.project;
@@ -410,6 +439,11 @@ function clearFilters(){
 const noMatch=()=>`<div class="empty">No issues match the current filters. <a href="#" data-action="clear">Clear filters</a></div>`;
 const noIssues=()=>`<div class="empty">No issues yet. Create one with: python jira.py add --type Task --title "..."</div>`;
 
+// Shared chip markup (JT-46): one place for the tinted-label styling used by
+// type badges and status/priority pills across cards, rows, epic heads, drawer.
+const badge=(cls,label,c)=>`<span class="${cls}" style="background:${tint(c,24)};color:${c}">${esc(label)}</span>`;
+const typeBadge=t=>badge('ttype',t,tcol(t));
+const statusPill=s=>badge('pill',s,scol(s));
 // Blocked indicator (JT-38): shown only when an issue has >=1 OPEN blocker.
 function blockedInd(i){
   const open=openBlockers(i);
@@ -422,7 +456,7 @@ function cardHTML(i){
   const upd=i.updated?`<span class="cc">${relSpan(i.updated)}</span>`:'';
   return `<div class="card" style="--tc:${tcol(i.type)}" data-key="${esc(i.key)}" tabindex="0" role="button" aria-label="${esc(i.key)}: ${esc(i.title)}">
     <div class="top">
-      <span class="ttype" style="background:${tint(tcol(i.type),24)};color:${tcol(i.type)}">${esc(i.type)}</span>
+      ${typeBadge(i.type)}
       <span class="ckey">${blockedInd(i)}${esc(i.key)}</span>
     </div>
     <div class="title">${esc(i.title)}</div>
@@ -443,11 +477,11 @@ function renderBoard(){
 }
 function rowHTML(i){
   return `<div class="row" data-key="${esc(i.key)}" tabindex="0" role="button" aria-label="${esc(i.key)}: ${esc(i.title)}">
-    <span class="ttype" style="background:${tint(tcol(i.type),24)};color:${tcol(i.type)}">${esc(i.type)}</span>
+    ${typeBadge(i.type)}
     <span class="ckey">${blockedInd(i)}${esc(i.key)}</span>
     <span class="title">${esc(i.title)}</span>
     <span class="pri" style="color:${pcol(i.priority)}"><span class="pbar" style="background:${pcol(i.priority)}"></span>${esc(i.priority)}</span>
-    <span class="pill" style="background:${tint(scol(i.status),24)};color:${scol(i.status)}">${esc(i.status)}</span></div>`;
+    ${statusPill(i.status)}</div>`;
 }
 function renderEpics(){
   if(!BOARD.issues.length){document.getElementById('main').innerHTML=noIssues();return;}
@@ -460,40 +494,37 @@ function renderEpics(){
   EPICS.forEach(e=>{
     if(fEpic&&fEpic!=='__none__'&&fEpic!==e.key)return;
     if(fEpic==='__none__')return; // No-Epic filter hides epic groups
-    const membersAll=BOARD.issues.filter(i=>i.key!==e.key&&epicOf(i)===e.key); // unfiltered, transitive
-    const kids=BOARD.issues.filter(i=>i.key!==e.key&&epicOf(i)===e.key&&passesFacets(i));
+    const membersAll=MEMBERS_ALL.get(e.key)||[]; // unfiltered, transitive
+    const kids=MEMBERS.get(e.key)||[];
     if(childFilter&&!kids.length)return; // with filters, only groups that still have members
     const done=membersAll.filter(k=>k.status==='Done').length;
     const pct=membersAll.length?Math.round(done/membersAll.length*100):0;
     const body=kids.length?kids.map(rowHTML).join('')
       :(childFilter?'<div class="note">no matching issues</div>':'<div class="note">no issues yet</div>');
     html+=`<section class="epic-group"><div class="epic-head" data-key="${esc(e.key)}">
-      <span class="ttype" style="background:${tint(tcol('Epic'),24)};color:${tcol('Epic')}">Epic</span>
+      ${typeBadge('Epic')}
       <span class="ckey">${esc(e.key)}</span><span class="title">${esc(e.title)}</span>
       <span class="prog" title="overall progress, ignores filters"><span class="prog-bar"><i style="width:${pct}%"></i></span><span class="prog-n">${done}/${membersAll.length} done</span></span>
-      <span class="pill" style="background:${tint(scol(e.status),24)};color:${scol(e.status)}">${esc(e.status)}</span></div>
+      ${statusPill(e.status)}</div>
       <div class="epic-body">${body}</div></section>`;
   });
   if(!fEpic||fEpic==='__none__'){
-    const orphans=BOARD.issues.filter(i=>isOrphan(i)&&passesFacets(i));
-    if(orphans.length){
-      html+=`<section class="epic-group"><div class="epic-head" style="cursor:default"><span class="title" style="color:var(--muted)">No Epic</span></div><div class="epic-body">${orphans.map(rowHTML).join('')}</div></section>`;
+    if(ORPHANS.length){
+      html+=`<section class="epic-group"><div class="epic-head" style="cursor:default"><span class="title" style="color:var(--muted)">No Epic</span></div><div class="epic-body">${ORPHANS.map(rowHTML).join('')}</div></section>`;
     }
   }
   document.getElementById('main').innerHTML=html||noMatch();
 }
-function render(){buildEpicIndex();header();fillFilters();view==='board'?renderBoard():renderEpics();syncHash();}
+function render(){buildMembership();header();fillFilters();view==='board'?renderBoard():renderEpics();syncHash();}
 
 // Element that had focus before the drawer opened, restored on close (JT-28).
-// openerKey remembers which issue card opened it, for a fallback after re-render.
-let drawerOpener=null, openerKey='';
+let drawerOpener=null;
 const FOCUSABLE='a[href],button:not([disabled]),input,select,textarea,[tabindex]:not([tabindex="-1"])';
 const cssEsc=s=>(window.CSS&&window.CSS.escape)?window.CSS.escape(s):String(s).replace(/["\\]/g,'\\$&');
 function openIssue(key){
   const i=BOARD.issues.find(x=>x.key===key);if(!i)return;
   // Remember the opener so focus can be restored on close.
   drawerOpener=(document.activeElement&&document.activeElement!==document.body)?document.activeElement:null;
-  openerKey=key;
   openKey=key;
   const d=document.getElementById('drawer');
   const par=i.parent?BOARD.issues.find(x=>x.key===i.parent):null;
@@ -514,14 +545,14 @@ function openIssue(key){
     ['Updated',i.updated?relSpan(i.updated):'—']
   ];
   d.innerHTML=`<div class="d-head">
-      <span class="ttype" style="background:${tint(tcol(i.type),24)};color:${tcol(i.type)}">${esc(i.type)}</span>
+      ${typeBadge(i.type)}
       <span class="ckey">${esc(i.key)}</span>
       <button class="x" data-action="close" title="close" aria-label="close">✕</button>
     </div>
     <h2 class="d-title" id="d-title">${esc(i.title)}</h2>
     <div class="d-pills">
-      <span class="pill" style="background:${tint(scol(i.status),24)};color:${scol(i.status)}">${esc(i.status)}</span>
-      <span class="pill" style="background:${tint(pcol(i.priority),24)};color:${pcol(i.priority)}">${esc(i.priority)}</span>
+      ${statusPill(i.status)}
+      ${badge('pill',i.priority,pcol(i.priority))}
     </div>
     ${blk?`<div class="d-sec">Blocked by</div><div class="blk-row">${blk}</div>`:''}
     ${i.description?`<div class="d-sec">Description</div><div class="d-desc">${linkify(esc(i.description))}</div>`:''}
@@ -549,6 +580,7 @@ function trapFocus(e){
 function closeDrawer(){
   const d=document.getElementById('drawer');
   const wasOpen=d.classList.contains('on');
+  const k=openKey; // captured for the focus fallback below, before the state clears (JT-46)
   document.getElementById('scrim').classList.remove('on');
   d.classList.remove('on');d.setAttribute('aria-hidden','true');
   openKey='';
@@ -556,10 +588,10 @@ function closeDrawer(){
   // matching card/row, then to the body (JT-28).
   if(wasOpen){
     let tgt=(drawerOpener&&document.body.contains(drawerOpener))?drawerOpener:null;
-    if(!tgt&&openerKey)tgt=document.querySelector(`[data-key="${cssEsc(openerKey)}"]`);
+    if(!tgt&&k)tgt=document.querySelector(`[data-key="${cssEsc(k)}"]`);
     if(tgt&&tgt.focus)tgt.focus();else document.getElementById('main').focus();
   }
-  drawerOpener=null;openerKey='';
+  drawerOpener=null;
   syncHash();
 }
 
@@ -574,6 +606,9 @@ function syncHash(){
   if(q)p.set('q',q);
   if(openKey)p.set('i',openKey);
   const s=p.toString();
+  // Skip the history write when nothing changed — render() runs per keystroke
+  // and browsers rate-limit replaceState (JT-44).
+  if(s===lastHash&&location.hash.replace(/^#/,'')===s)return;
   lastHash=s;
   history.replaceState(null,'',s?'#'+s:location.pathname+location.search);
 }
@@ -588,7 +623,7 @@ function applyHash(){
       const p=new URLSearchParams(h);
       if(p.get('v')==='epics')view='epics';
       fEpic=p.get('e')||'';fType=p.get('t')||'';fPri=p.get('p')||'';
-      q=p.get('q')||'';openKey=p.get('i')||'';
+      q=(p.get('q')||'').trim();openKey=p.get('i')||''; // trim to match the live input handler (JT-43)
     }
   }
   document.getElementById('fsearch').value=q;
@@ -656,7 +691,11 @@ new IntersectionObserver(es=>{
   document.getElementById('toolbar').classList.toggle('stuck',!es[0].isIntersecting);
 },{rootMargin:'-1px 0px 0px 0px'}).observe(document.getElementById('sentinel'));
 window.addEventListener('hashchange',()=>{
-  if(location.hash.replace(/^#/,'')===lastHash)return; // ignore our own writes
+  const h=location.hash.replace(/^#/,'');
+  if(h===lastHash)return; // ignore our own writes
+  // Seed lastHash so the render() below doesn't rewrite the hash it is
+  // consuming; syncHash re-canonicalizes only if the applied state differs (JT-44).
+  lastHash=h;
   applyHash();
   render();
   if(openKey)openIssue(openKey);else closeDrawer();

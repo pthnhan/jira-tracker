@@ -340,8 +340,9 @@ version guard (`error: this board was written by a newer jira.py`).
 jira=<this-skill-dir>/scripts/jira.py
 ```
 
-The version stamp is the backstop: if a mismatched copy somehow runs, it will
-refuse to operate on a board it didn't write, preventing silent data corruption.
+The version stamp is the backstop: if an older copy somehow runs against a
+board written by a newer one, it refuses to operate — preventing a stale
+embedded template from silently regressing the rendered board.
 
 ### Same-machine concurrent writes
 

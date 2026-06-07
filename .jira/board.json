@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-07T16:08:56+07:00",
+    "updated": "2026-06-07T16:40:13+07:00",
     "counter": 47
   },
   "types": [
@@ -1102,19 +1102,24 @@
       "type": "Epic",
       "title": "Fixes from 2026-06-07 code review (template v2)",
       "description": "Verified findings from the /code-review of HEAD~5..HEAD: 3 correctness bugs in the board template JS plus test/docs/cleanup follow-ups. Template fixes go in the embedded template in scripts/jira.py (.claude AND .codex mirrors) followed by regenerating examples/board.html and .jira/board.html.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": null,
       "labels": [],
       "components": [],
       "assignee": "",
       "created": "2026-06-07T16:08:16+07:00",
-      "updated": "2026-06-07T16:08:56+07:00",
+      "updated": "2026-06-07T16:40:13+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-07T16:08:56+07:00",
           "body": "README review pass done alongside this epic's creation: fixed version-guard wording (JT-47), updated the hash-state description to template v2 behavior (full filter/search/drawer state syncs to the URL hash, #KEY as shortcut), and quoted \"$jira\" in the hand-driving examples for zsh consistency with the JT-13 fix. Factual claims verified against code: doctor's 12 codes, two web fonts, reopen guard, tiered writes."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:40:13+07:00",
+          "body": "All six children shipped: 3 template bugs fixed (linkify, q trim, hash churn), artifact-sync test extended to .jira pair, template cleanups landed, docs wording aligned. 138/138 tests green; mirrors synced; both artifacts regenerated."
         }
       ]
     },
@@ -1123,7 +1128,7 @@
       "type": "Bug",
       "title": "linkify() captures escaped entities and trailing punctuation into hrefs",
       "description": "linkify runs /https?:\\/\\/[^\\s<]+/ on esc()-escaped text, so 'see \"https://x.com\"' becomes href='https://x.com&quot;' — entities (&quot;/&gt;/&#39;) and trailing ./) are glued into the URL, producing broken links. Fix in the template source in scripts/jira.py (both mirrors) + regenerate.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "High",
       "parent": "JT-41",
       "labels": [],
@@ -1132,15 +1137,26 @@
       ],
       "assignee": "",
       "created": "2026-06-07T16:08:28+07:00",
-      "updated": "2026-06-07T16:08:28+07:00",
-      "comments": []
+      "updated": "2026-06-07T16:39:55+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:31:26+07:00",
+          "body": "Fixing linkify in the embedded template: stop URL match at escaped-entity boundaries (&quot;/&gt;/&#39;/&lt;) while keeping &amp; in query strings, and trim trailing punctuation."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:39:55+07:00",
+          "body": "Rewrote linkify: regex now keeps &amp; inside URLs but stops at &quot;/&gt;/&#39;/&lt; entity boundaries, and peels trailing punctuation plus unbalanced ')' out of the anchor. Verified with 8 node test cases incl. Wikipedia-style balanced parens and query strings."
+        }
+      ]
     },
     {
       "key": "JT-43",
       "type": "Bug",
       "title": "Deep-link #q= param not trimmed — URL vs typed search filter differently",
       "description": "applyHash sets q=p.get('q')||'' untrimmed while the input handler does e.target.value.trim(); #q=%20refund%20 fails to match what typing the same text matches. Trim in applyHash.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-41",
       "labels": [],
@@ -1149,15 +1165,26 @@
       ],
       "assignee": "",
       "created": "2026-06-07T16:08:28+07:00",
-      "updated": "2026-06-07T16:08:28+07:00",
-      "comments": []
+      "updated": "2026-06-07T16:39:55+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:33:00+07:00",
+          "body": "Trim q when restoring from the hash in applyHash, matching the input handler's .trim()."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:39:55+07:00",
+          "body": "applyHash now trims the q param ((p.get('q')||'').trim()), matching the live input handler — deep links with stray whitespace filter identically to typed queries."
+        }
+      ]
     },
     {
       "key": "JT-44",
       "type": "Bug",
       "title": "syncHash fires replaceState on every render; hashchange double-renders with two hash writes",
       "description": "syncHash has no s===lastHash short-circuit, so every undebounced keystroke calls history.replaceState (Safari rate-limits ~100/30s and then throws). The hashchange handler runs render()+openIssue()/closeDrawer(), each calling syncHash — full board+drawer rebuild and two writes per back/forward nav.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-41",
       "labels": [],
@@ -1166,15 +1193,26 @@
       ],
       "assignee": "",
       "created": "2026-06-07T16:08:28+07:00",
-      "updated": "2026-06-07T16:08:28+07:00",
-      "comments": []
+      "updated": "2026-06-07T16:39:55+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:33:00+07:00",
+          "body": "Short-circuit syncHash when serialized state and URL hash are both unchanged; seed lastHash in the hashchange handler so the post-navigation render doesn't rewrite the hash it just consumed."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:39:55+07:00",
+          "body": "syncHash short-circuits when serialized state and the URL hash are both unchanged (no more per-keystroke replaceState; Safari rate-limit safe). hashchange handler seeds lastHash before applying, so the post-navigation render no longer rewrites the hash it just consumed — one canonicalizing write max per navigation."
+        }
+      ]
     },
     {
       "key": "JT-45",
       "type": "Task",
       "title": "Extend artifact-sync test to the .jira/board.json → .jira/board.html pair",
       "description": "TestArtifactSync only drift-guards examples/; .jira/board.html is co-committed with board.json but nothing verifies they match (the prompt hook only echoes a reminder, no pre-commit/CI, and the version guard only fires on newer-than-CLI boards). Parametrize the byte-identity check over both pairs.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Medium",
       "parent": "JT-41",
       "labels": [],
@@ -1183,15 +1221,26 @@
       ],
       "assignee": "",
       "created": "2026-06-07T16:08:42+07:00",
-      "updated": "2026-06-07T16:08:42+07:00",
-      "comments": []
+      "updated": "2026-06-07T16:40:13+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:34:19+07:00",
+          "body": "Parametrizing the byte-identity drift check over both committed json→html pairs (examples/ and .jira/)."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:40:13+07:00",
+          "body": "TestArtifactSync now parametrizes (via subTest) over both committed pairs: examples/sample-board.json→examples/board.html and .jira/board.json→.jira/board.html. Red-green verified: a one-byte-stale .jira/board.html fails the suite with a regeneration hint."
+        }
+      ]
     },
     {
       "key": "JT-46",
       "type": "Task",
       "title": "Template v2 cleanups: shared pill/badge helpers, unified epic-membership pass, one-time epic index, drop openerKey, prune dead CSS",
       "description": "Verified cleanups: (1) status-pill/type-badge markup hand-written at 7 sites (tint 14→24 was edited in lockstep this diff) — extract helpers; (2) epic-membership predicate open-coded at 3 sites, already diverging at lines 463/464 — one per-render bucketing pass; (3) buildEpicIndex rebuilt every render though BOARD is immutable — build once after parse; (4) openerKey duplicates openKey — capture a local in closeDrawer; (5) print @media enumerates toolbar children already hidden by .toolbar{display:none} (keep #sentinel) and .epic-head:focus-visible can never match (no tabindex).",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-41",
       "labels": [],
@@ -1200,15 +1249,26 @@
       ],
       "assignee": "",
       "created": "2026-06-07T16:08:42+07:00",
-      "updated": "2026-06-07T16:08:42+07:00",
-      "comments": []
+      "updated": "2026-06-07T16:40:13+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:35:41+07:00",
+          "body": "Template cleanups: pill/badge helpers, single membership pass, one-time epic index, drop openerKey, prune dead print/focus CSS."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:40:13+07:00",
+          "body": "Done in template v2: (1) badge()/typeBadge()/statusPill() helpers replace 8 hand-written pill/badge sites; (2) buildMembership() does one bucketing pass per render (MEMBERS/MEMBERS_ALL/ORPHANS) replacing per-epic full scans in memberCount/renderEpics — node equivalence check passed across 6 facet combos on the live board; (3) buildEpicIndex now runs once at load (BOARD is immutable in the browser); (4) openerKey removed, closeDrawer captures a local; (5) pruned dead CSS: print block child enumeration (toolbar already hidden, #sentinel kept) and unreachable .card/.row/.epic-head:focus-visible selectors ([tabindex] covers the focusable ones)."
+        }
+      ]
     },
     {
       "key": "JT-47",
       "type": "Task",
       "title": "Align SKILL.md version-guard wording with the actual mechanism (README done)",
       "description": "SKILL.md ('Prefer the repo-local copy' section, both .claude and .codex mirrors) still says the version stamp prevents 'silent data corruption'; the guard only refuses an older CLI on a newer board, mainly preventing a stale embedded template from regressing the rendered board. README.md was already fixed on 2026-06-07.",
-      "status": "To Do",
+      "status": "Done",
       "priority": "Low",
       "parent": "JT-41",
       "labels": [],
@@ -1217,12 +1277,22 @@
       ],
       "assignee": "",
       "created": "2026-06-07T16:08:42+07:00",
-      "updated": "2026-06-07T16:08:56+07:00",
+      "updated": "2026-06-07T16:40:13+07:00",
       "comments": [
         {
           "author": "agent",
           "at": "2026-06-07T16:08:56+07:00",
           "body": "README.md half done (2026-06-07): reworded lines 31-34 to describe the real mechanism — older CLI refuses a newer board, preventing a stale embedded template from regressing the rendered board. Remaining: the same 'silent data corruption' phrase in SKILL.md, .claude and .codex mirrors."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:35:41+07:00",
+          "body": "Rewording the version-guard backstop sentence in SKILL.md, both mirrors."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:40:13+07:00",
+          "body": "SKILL.md backstop sentence reworded in both mirrors: an older copy refuses a board written by a newer one, preventing a stale embedded template from regressing the rendered board. README half was done earlier today."
         }
       ]
     }
