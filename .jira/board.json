@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-06T14:39:23+07:00",
-    "counter": 40
+    "updated": "2026-06-07T16:08:56+07:00",
+    "counter": 47
   },
   "types": [
     "Epic",
@@ -1094,6 +1094,135 @@
           "author": "agent",
           "at": "2026-06-06T12:49:52+07:00",
           "body": "STALE_DAYS=7 annotations in next/status (handles naive-tz stamps); status --json exposes stale keys. Commits 025bf21 + 0e886de."
+        }
+      ]
+    },
+    {
+      "key": "JT-41",
+      "type": "Epic",
+      "title": "Fixes from 2026-06-07 code review (template v2)",
+      "description": "Verified findings from the /code-review of HEAD~5..HEAD: 3 correctness bugs in the board template JS plus test/docs/cleanup follow-ups. Template fixes go in the embedded template in scripts/jira.py (.claude AND .codex mirrors) followed by regenerating examples/board.html and .jira/board.html.",
+      "status": "To Do",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-07T16:08:16+07:00",
+      "updated": "2026-06-07T16:08:56+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:08:56+07:00",
+          "body": "README review pass done alongside this epic's creation: fixed version-guard wording (JT-47), updated the hash-state description to template v2 behavior (full filter/search/drawer state syncs to the URL hash, #KEY as shortcut), and quoted \"$jira\" in the hand-driving examples for zsh consistency with the JT-13 fix. Factual claims verified against code: doctor's 12 codes, two web fonts, reopen guard, tiered writes."
+        }
+      ]
+    },
+    {
+      "key": "JT-42",
+      "type": "Bug",
+      "title": "linkify() captures escaped entities and trailing punctuation into hrefs",
+      "description": "linkify runs /https?:\\/\\/[^\\s<]+/ on esc()-escaped text, so 'see \"https://x.com\"' becomes href='https://x.com&quot;' — entities (&quot;/&gt;/&#39;) and trailing ./) are glued into the URL, producing broken links. Fix in the template source in scripts/jira.py (both mirrors) + regenerate.",
+      "status": "To Do",
+      "priority": "High",
+      "parent": "JT-41",
+      "labels": [],
+      "components": [
+        "board-template"
+      ],
+      "assignee": "",
+      "created": "2026-06-07T16:08:28+07:00",
+      "updated": "2026-06-07T16:08:28+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-43",
+      "type": "Bug",
+      "title": "Deep-link #q= param not trimmed — URL vs typed search filter differently",
+      "description": "applyHash sets q=p.get('q')||'' untrimmed while the input handler does e.target.value.trim(); #q=%20refund%20 fails to match what typing the same text matches. Trim in applyHash.",
+      "status": "To Do",
+      "priority": "Medium",
+      "parent": "JT-41",
+      "labels": [],
+      "components": [
+        "board-template"
+      ],
+      "assignee": "",
+      "created": "2026-06-07T16:08:28+07:00",
+      "updated": "2026-06-07T16:08:28+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-44",
+      "type": "Bug",
+      "title": "syncHash fires replaceState on every render; hashchange double-renders with two hash writes",
+      "description": "syncHash has no s===lastHash short-circuit, so every undebounced keystroke calls history.replaceState (Safari rate-limits ~100/30s and then throws). The hashchange handler runs render()+openIssue()/closeDrawer(), each calling syncHash — full board+drawer rebuild and two writes per back/forward nav.",
+      "status": "To Do",
+      "priority": "Medium",
+      "parent": "JT-41",
+      "labels": [],
+      "components": [
+        "board-template"
+      ],
+      "assignee": "",
+      "created": "2026-06-07T16:08:28+07:00",
+      "updated": "2026-06-07T16:08:28+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-45",
+      "type": "Task",
+      "title": "Extend artifact-sync test to the .jira/board.json → .jira/board.html pair",
+      "description": "TestArtifactSync only drift-guards examples/; .jira/board.html is co-committed with board.json but nothing verifies they match (the prompt hook only echoes a reminder, no pre-commit/CI, and the version guard only fires on newer-than-CLI boards). Parametrize the byte-identity check over both pairs.",
+      "status": "To Do",
+      "priority": "Medium",
+      "parent": "JT-41",
+      "labels": [],
+      "components": [
+        "tests"
+      ],
+      "assignee": "",
+      "created": "2026-06-07T16:08:42+07:00",
+      "updated": "2026-06-07T16:08:42+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-46",
+      "type": "Task",
+      "title": "Template v2 cleanups: shared pill/badge helpers, unified epic-membership pass, one-time epic index, drop openerKey, prune dead CSS",
+      "description": "Verified cleanups: (1) status-pill/type-badge markup hand-written at 7 sites (tint 14→24 was edited in lockstep this diff) — extract helpers; (2) epic-membership predicate open-coded at 3 sites, already diverging at lines 463/464 — one per-render bucketing pass; (3) buildEpicIndex rebuilt every render though BOARD is immutable — build once after parse; (4) openerKey duplicates openKey — capture a local in closeDrawer; (5) print @media enumerates toolbar children already hidden by .toolbar{display:none} (keep #sentinel) and .epic-head:focus-visible can never match (no tabindex).",
+      "status": "To Do",
+      "priority": "Low",
+      "parent": "JT-41",
+      "labels": [],
+      "components": [
+        "board-template"
+      ],
+      "assignee": "",
+      "created": "2026-06-07T16:08:42+07:00",
+      "updated": "2026-06-07T16:08:42+07:00",
+      "comments": []
+    },
+    {
+      "key": "JT-47",
+      "type": "Task",
+      "title": "Align SKILL.md version-guard wording with the actual mechanism (README done)",
+      "description": "SKILL.md ('Prefer the repo-local copy' section, both .claude and .codex mirrors) still says the version stamp prevents 'silent data corruption'; the guard only refuses an older CLI on a newer board, mainly preventing a stale embedded template from regressing the rendered board. README.md was already fixed on 2026-06-07.",
+      "status": "To Do",
+      "priority": "Low",
+      "parent": "JT-41",
+      "labels": [],
+      "components": [
+        "docs"
+      ],
+      "assignee": "",
+      "created": "2026-06-07T16:08:42+07:00",
+      "updated": "2026-06-07T16:08:56+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-07T16:08:56+07:00",
+          "body": "README.md half done (2026-06-07): reworded lines 31-34 to describe the real mechanism — older CLI refuses a newer board, preventing a stale embedded template from regressing the rendered board. Remaining: the same 'silent data corruption' phrase in SKILL.md, .claude and .codex mirrors."
         }
       ]
     }

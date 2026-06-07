@@ -29,8 +29,9 @@ examples/board.html          # the rendered view of that example
 ```
 
 The **repo-local copy** of `jira.py` is preferred when working inside this repo;
-boards carry a `template_version` stamp and refuse to be operated on by an older
-CLI copy, preventing silent data corruption.
+boards carry a `template_version` stamp, and an older CLI copy refuses to
+operate on a board written by a newer one — preventing a stale embedded
+template from silently regressing the rendered board.
 
 When used, the board itself lives in the repo root under:
 
@@ -154,16 +155,16 @@ jira=".claude/skills/jira-tracker/scripts/jira.py"
 # or, in a Codex-packaged repo:
 # jira=".codex/skills/jira-tracker/scripts/jira.py"
 
-python3 $jira init --name "My App" --key APP --repo "github.com/me/app"
-python3 $jira add --type Epic  --title "User accounts" --priority High
-python3 $jira add --type Story --title "Sign up with email" --parent APP-1
-python3 $jira move APP-2 "in progress" --comment "Building the form."
-python3 $jira link APP-3 --blocked-by APP-2     # mark a dependency
-python3 $jira next        # what should I do? (blocked issues listed separately)
-python3 $jira next --json # machine-readable recommendations for scripts/agents
-python3 $jira status      # board summary (stale In-Progress issues annotated)
-python3 $jira doctor      # integrity check (12 codes, exit 1 on problems)
-python3 $jira render      # regenerate board.html
+python3 "$jira" init --name "My App" --key APP --repo "github.com/me/app"
+python3 "$jira" add --type Epic  --title "User accounts" --priority High
+python3 "$jira" add --type Story --title "Sign up with email" --parent APP-1
+python3 "$jira" move APP-2 "in progress" --comment "Building the form."
+python3 "$jira" link APP-3 --blocked-by APP-2   # mark a dependency
+python3 "$jira" next        # what should I do? (blocked issues listed separately)
+python3 "$jira" next --json # machine-readable recommendations for scripts/agents
+python3 "$jira" status      # board summary (stale In-Progress issues annotated)
+python3 "$jira" doctor      # integrity check (12 codes, exit 1 on problems)
+python3 "$jira" render      # regenerate board.html
 ```
 
 Try it instantly against the included example:
@@ -190,7 +191,9 @@ python3 .claude/skills/jira-tracker/scripts/jira.py --file examples/sample-board
   epic/type/priority dropdowns (with live counts), text search, and a
   clear-filters shortcut live in a toolbar that stays pinned while you scroll.
   Cards open in a slide-in detail drawer with description, metadata, blocked-by
-  chips, and comment trail. URL-hash deep-links (`#KEY`) open issues directly.
+  chips, and comment trail. The full view state — filters, search, open issue —
+  syncs to the URL hash, so any filtered view is shareable; `#KEY` is a shortcut
+  deep-link that opens an issue directly.
   Dark and light themes with a toggle (follows your system preference by default;
   syncs across tabs). Print-optimized styles and reduced-motion support included.
   Non-canonical statuses get distinct colors from an 8-hue palette rather than a
