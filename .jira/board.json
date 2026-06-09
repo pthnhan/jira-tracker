@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-09T17:25:56+07:00",
-    "counter": 48
+    "updated": "2026-06-09T21:01:44+07:00",
+    "counter": 54
   },
   "types": [
     "Epic",
@@ -1345,6 +1345,206 @@
           "author": "agent",
           "at": "2026-06-09T17:25:56+07:00",
           "body": "Post-review hardening of scripts/sync.py (/code-review, 8 findings): (1) source-of-truth now anchored to the .claude tree via _find_repo() instead of __file__ position, so running the byte-identical .codex copy no longer inverts the copy direction; (2) --check and --global made mutually exclusive (argparse) — previously --check short-circuited and silently skipped --global; (3) empty-string HOME/CODEX_HOME now falls back correctly (or, not get-default) so --global can't rmtree under cwd; (4) _require_src() gives a clear error when a SHARED entry is missing from source instead of a bare FileNotFoundError. Tests: SHARED list deduped to a single source (imported from sync.py; JT-15 byte-equality test + TestSyncScript share it); TestSyncScript now runs against an isolated temp copy of both trees so the suite never mutates the real .codex files. 154/154 green; .codex re-synced byte-identical."
+        }
+      ]
+    },
+    {
+      "key": "JT-49",
+      "type": "Epic",
+      "title": "CLI capability upgrades: CI, history, bulk ops, search, report",
+      "description": "Batch of upgrades suggested after the JT-48 review: wire up CI to enforce the sync/test backstops, and extend the tracker CLI with activity history, bulk move/set, full-text search, and a metrics report.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [
+        "enhancements"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T21:01:19+07:00",
+      "updated": "2026-06-09T21:01:44+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T21:01:44+07:00",
+          "body": "All 5 children Done. Suite 154->191 tests green; .codex re-synced byte-identical; smoke-tested in a temp board. Suggested after the JT-48 code review."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-09T21:01:19+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-09T21:01:43+07:00",
+          "from": "To Do",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-50",
+      "type": "Task",
+      "title": "GitHub Actions CI: run test suite + sync --check on push/PR to main",
+      "description": "Adds .github/workflows/ci.yml (matrix py 3.10-3.12). Makes the README's 'drift never reaches main' guarantee real — previously no CI existed.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-49",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T21:01:30+07:00",
+      "updated": "2026-06-09T21:01:43+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T21:01:43+07:00",
+          "body": "Implemented via subagent. .github/workflows/ci.yml: push+PR to main, ubuntu-latest, py 3.10/3.11/3.12 matrix, runs 'unittest discover -s tests' and 'sync.py --check'. Stdlib-only, no pip."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-09T21:01:30+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-09T21:01:43+07:00",
+          "from": "To Do",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-51",
+      "type": "Task",
+      "title": "Activity history: append-only status-transition log per issue",
+      "description": "Each issue gets a history array of {at,from,to}. Seeded on add, appended on move (no dup on no-op). Shown in 'show'. Backward-compatible with older boards lacking the field.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-49",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T21:01:30+07:00",
+      "updated": "2026-06-09T21:01:43+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T21:01:43+07:00",
+          "body": "Implemented (TDD). history=[{at,from,to}] seeded on add, appended on move only when status changes; shown in 'show'; missing-history boards handled everywhere; schema.md documents it."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-09T21:01:30+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-09T21:01:43+07:00",
+          "from": "To Do",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-52",
+      "type": "Task",
+      "title": "Bulk move/set: operate on multiple issue keys atomically",
+      "description": "move JT-1 JT-2 Done and set JT-1 JT-2 --priority High. Validate-all-first: an invalid key/value aborts the whole batch with zero writes; single save/render.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-49",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T21:01:30+07:00",
+      "updated": "2026-06-09T21:01:44+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T21:01:44+07:00",
+          "body": "Implemented (TDD). move/set take nargs='+' keys; validate-all-first atomicity (invalid key/value -> zero writes); single save/render; per-issue history recorded; single-key usage unchanged."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-09T21:01:30+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-09T21:01:43+07:00",
+          "from": "To Do",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-53",
+      "type": "Task",
+      "title": "search command: case-insensitive full-text find across all issues",
+      "description": "Searches key/title/description/labels/components/comments across all statuses; reports match location; supports --json. Reuses cmd_list formatting.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-49",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T21:01:30+07:00",
+      "updated": "2026-06-09T21:01:44+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T21:01:44+07:00",
+          "body": "Implemented (TDD). cmd_search across key/title/desc/labels/components/comments, all statuses, case-insensitive, match-location annotation, --json. Factored _format_issue_line out of cmd_list (no dup)."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-09T21:01:30+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-09T21:01:43+07:00",
+          "from": "To Do",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-54",
+      "type": "Task",
+      "title": "report command: board metrics summary",
+      "description": "Counts by status/type/priority, stale count, and cycle time (creation -> first terminal transition, using history). Robust to issues without history; supports --json.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-49",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T21:01:30+07:00",
+      "updated": "2026-06-09T21:01:44+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T21:01:44+07:00",
+          "body": "Implemented (TDD). cmd_report: totals + by status/type/priority, stale (reuses _is_stale), cycle time = created->first transition into CLOSED_STATUSES (avg+median), robust to no-history, --json."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-09T21:01:30+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-09T21:01:43+07:00",
+          "from": "To Do",
+          "to": "Done"
         }
       ]
     }
