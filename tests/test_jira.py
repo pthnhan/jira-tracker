@@ -238,10 +238,79 @@ class TestPackaging(unittest.TestCase):
     def test_claude_and_codex_trees_in_sync(self):
         """JT-15: the shared files of both packagings must be byte-identical."""
         for rel in ("SKILL.md", "scripts/jira.py", "scripts/install-board-hook.py",
-                    "references/schema.md"):
+                    "scripts/sync.py", "references/schema.md"):
             a = (CLAUDE_TREE / rel).read_bytes()
             b = (CODEX_TREE / rel).read_bytes()
             self.assertEqual(a, b, f"{rel} differs between .claude and .codex trees")
+
+
+class TestSyncScript(unittest.TestCase):
+    """JT-48: scripts/sync.py mirrors the shared files from .claude (the single
+    source) into .codex, and with --global refreshes external installs."""
+
+    SYNC = CLAUDE_TREE / "scripts/sync.py"
+    SHARED = ("SKILL.md", "scripts/jira.py", "scripts/install-board-hook.py",
+              "scripts/sync.py", "references/schema.md")
+
+    def test_sync_script_exists_in_both_trees(self):
+        self.assertTrue(self.SYNC.exists(), "scripts/sync.py missing from .claude tree")
+        self.assertTrue((CODEX_TREE / "scripts/sync.py").exists(),
+                        "scripts/sync.py missing from .codex tree")
+
+    def test_check_mode_passes_on_a_synced_repo(self):
+        """--check exits 0 when the trees already match (the committed state)."""
+        r = subprocess.run([sys.executable, str(self.SYNC), "--check"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, f"--check failed on a synced repo: {r.stdout}{r.stderr}")
+
+    def test_sync_restores_a_diverged_codex_file(self):
+        """Corrupt a .codex shared file, run sync, confirm it is restored from
+        .claude — and that --check flagged the drift beforehand."""
+        target = CODEX_TREE / "references/schema.md"
+        original = target.read_bytes()
+        try:
+            target.write_bytes(original + b"\n<!-- drift -->\n")
+            check = subprocess.run([sys.executable, str(self.SYNC), "--check"],
+                                   capture_output=True, text=True)
+            self.assertNotEqual(check.returncode, 0, "--check did not detect the drift")
+
+            r = subprocess.run([sys.executable, str(self.SYNC)],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, f"sync failed: {r.stderr}")
+            self.assertEqual(target.read_bytes(), original,
+                             "sync did not restore the diverged .codex file from .claude")
+        finally:
+            target.write_bytes(original)
+
+    def test_sync_preserves_codex_only_files(self):
+        """The .codex tree has agents/openai.yaml with no .claude counterpart;
+        sync must not delete it."""
+        codex_only = CODEX_TREE / "agents/openai.yaml"
+        self.assertTrue(codex_only.exists(), "precondition: codex-only file should exist")
+        before = codex_only.read_bytes()
+        r = subprocess.run([sys.executable, str(self.SYNC)],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, f"sync failed: {r.stderr}")
+        self.assertTrue(codex_only.exists(), "sync deleted a codex-only file")
+        self.assertEqual(codex_only.read_bytes(), before)
+
+    def test_global_flag_copies_into_a_redirected_home(self):
+        """--global refreshes ~/.claude and $CODEX_HOME installs. Redirect both
+        to temp dirs via HOME / CODEX_HOME so the test never touches the real
+        installs."""
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as codex_home:
+            env = dict(os.environ, HOME=home, CODEX_HOME=codex_home)
+            r = subprocess.run([sys.executable, str(self.SYNC), "--global"],
+                               capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0, f"--global failed: {r.stderr}")
+            gc = Path(home) / ".claude/skills/jira-tracker/scripts/jira.py"
+            gx = Path(codex_home) / "skills/jira-tracker/scripts/jira.py"
+            self.assertTrue(gc.exists(), "global .claude jira.py not installed")
+            self.assertTrue(gx.exists(), "global .codex jira.py not installed")
+            self.assertEqual(gc.read_bytes(), (CLAUDE_TREE / "scripts/jira.py").read_bytes())
+            # global installs must not carry over build cruft
+            self.assertFalse((Path(home) / ".claude/skills/jira-tracker/scripts/__pycache__").exists(),
+                             "__pycache__ leaked into the global install")
 
 
 # --------------------------------------------------------------------------- #

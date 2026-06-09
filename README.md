@@ -13,16 +13,18 @@ comes up, and update status + leave a comment after finishing anything.
 ## What you get
 
 ```
-.claude/skills/jira-tracker/
+.claude/skills/jira-tracker/        # the single source of truth
 ├── SKILL.md                 # the workflow the agent follows
 ├── scripts/jira.py          # the tracker CLI (Python 3 stdlib only)
 ├── scripts/install-board-hook.py  # optional every-turn reminder hook (Claude Code)
+├── scripts/sync.py          # mirror .claude -> .codex (+ refresh global installs)
 └── references/schema.md     # board.json structure
-.codex/skills/jira-tracker/
+.codex/skills/jira-tracker/         # generated from .claude via scripts/sync.py
 ├── SKILL.md                 # same workflow, packaged for Codex
-├── agents/openai.yaml       # Codex UI metadata
+├── agents/openai.yaml       # Codex UI metadata (codex-only; preserved by sync)
 ├── scripts/jira.py          # same tracker CLI
 ├── scripts/install-board-hook.py  # same file (unused by Codex — no hook support)
+├── scripts/sync.py          # same sync tool
 └── references/schema.md     # same board.json structure
 examples/sample-board.json   # a filled-in example you can open via the CLI
 examples/board.html          # the rendered view of that example
@@ -123,6 +125,22 @@ src=/path/to/jira-tracker dst=/path/to/my-app; mkdir -p "$dst/.codex/skills" && 
 ```
 
 To install or refresh both agents in one project, run both commands.
+
+### Maintaining this repo (contributors)
+
+The `.claude` tree is the single source of truth; the `.codex` tree is generated
+from it. After editing anything under `.claude/skills/jira-tracker/`, mirror the
+shared files into `.codex` (codex-only files like `agents/openai.yaml` are left
+untouched):
+
+```bash
+python3 .claude/skills/jira-tracker/scripts/sync.py          # mirror .claude -> .codex
+python3 .claude/skills/jira-tracker/scripts/sync.py --check  # CI-style verify only (exit 1 on drift)
+python3 .claude/skills/jira-tracker/scripts/sync.py --global # also refresh ~/.claude and $CODEX_HOME installs
+```
+
+The test suite's byte-equality check (`test_claude_and_codex_trees_in_sync`)
+fails if you forget, so drift never reaches `main`.
 
 ## Guarantee layer (optional, Claude Code only)
 

@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-07T17:03:43+07:00",
-    "counter": 47
+    "updated": "2026-06-09T13:10:10+07:00",
+    "counter": 48
   },
   "types": [
     "Epic",
@@ -1314,6 +1314,32 @@
           "author": "agent",
           "at": "2026-06-07T16:40:13+07:00",
           "body": "SKILL.md backstop sentence reworded in both mirrors: an older copy refuses a board written by a newer one, preventing a stale embedded template from regressing the rendered board. README half was done earlier today."
+        }
+      ]
+    },
+    {
+      "key": "JT-48",
+      "type": "Task",
+      "title": "Build sync mechanism descoped from JT-15: derive .codex from .claude + refresh global installs",
+      "description": "JT-15 shipped only the drift-detection test; the sync/install mechanism was descoped. Today the .claude→.codex mirror was hand-copied 3x and the global ~/.claude copy went stale again. Build scripts/sync.py: copy .claude/skills/jira-tracker → .codex/skills/jira-tracker (the single source is .claude), and with --global also refresh ~/.claude and ${CODEX_HOME:-~/.codex}. The byte-equality test stays as the backstop; README install snippets collapse to one command.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": "JT-35",
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-09T13:07:15+07:00",
+      "updated": "2026-06-09T13:10:10+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-09T13:07:51+07:00",
+          "body": "TDD: writing tests for scripts/sync.py (mirror shared files .claude→.codex; --global refreshes ~/.claude and $CODEX_HOME/~/.codex), then implementing."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-09T13:10:10+07:00",
+          "body": "Built scripts/sync.py: mirrors the 5 shared files .claude→.codex (single source = .claude; codex-only agents/openai.yaml preserved), --check verifies (exit 1 on drift, CI backstop), --global refreshes ~/.claude and $CODEX_HOME:-~/.codex via clean copytree (excludes __pycache__/*.pyc/board.lock). 6 new tests (TDD), 153/153 green. sync.py added to the byte-equality shared list and committed into both trees. Ran --global for real: the stale ~/.claude copy flagged in this session's scan is now byte-identical to the repo. README gained a maintainer section; replaces the 3x hand-cp workflow used earlier today."
         }
       ]
     }
