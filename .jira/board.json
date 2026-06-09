@@ -4,7 +4,7 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-09T13:10:10+07:00",
+    "updated": "2026-06-09T17:25:56+07:00",
     "counter": 48
   },
   "types": [
@@ -1329,7 +1329,7 @@
       "components": [],
       "assignee": "",
       "created": "2026-06-09T13:07:15+07:00",
-      "updated": "2026-06-09T13:10:10+07:00",
+      "updated": "2026-06-09T17:25:56+07:00",
       "comments": [
         {
           "author": "agent",
@@ -1340,6 +1340,11 @@
           "author": "agent",
           "at": "2026-06-09T13:10:10+07:00",
           "body": "Built scripts/sync.py: mirrors the 5 shared files .claude→.codex (single source = .claude; codex-only agents/openai.yaml preserved), --check verifies (exit 1 on drift, CI backstop), --global refreshes ~/.claude and $CODEX_HOME:-~/.codex via clean copytree (excludes __pycache__/*.pyc/board.lock). 6 new tests (TDD), 153/153 green. sync.py added to the byte-equality shared list and committed into both trees. Ran --global for real: the stale ~/.claude copy flagged in this session's scan is now byte-identical to the repo. README gained a maintainer section; replaces the 3x hand-cp workflow used earlier today."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-09T17:25:56+07:00",
+          "body": "Post-review hardening of scripts/sync.py (/code-review, 8 findings): (1) source-of-truth now anchored to the .claude tree via _find_repo() instead of __file__ position, so running the byte-identical .codex copy no longer inverts the copy direction; (2) --check and --global made mutually exclusive (argparse) — previously --check short-circuited and silently skipped --global; (3) empty-string HOME/CODEX_HOME now falls back correctly (or, not get-default) so --global can't rmtree under cwd; (4) _require_src() gives a clear error when a SHARED entry is missing from source instead of a bare FileNotFoundError. Tests: SHARED list deduped to a single source (imported from sync.py; JT-15 byte-equality test + TestSyncScript share it); TestSyncScript now runs against an isolated temp copy of both trees so the suite never mutates the real .codex files. 154/154 green; .codex re-synced byte-identical."
         }
       ]
     }

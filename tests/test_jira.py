@@ -9,6 +9,7 @@ Run: python3 -m unittest discover -s tests -v
 
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -21,6 +22,13 @@ REPO = Path(__file__).resolve().parents[1]
 JIRA = REPO / ".claude/skills/jira-tracker/scripts/jira.py"
 CODEX_TREE = REPO / ".codex/skills/jira-tracker"
 CLAUDE_TREE = REPO / ".claude/skills/jira-tracker"
+
+# Single source for the shared-file list: import it from the script under test
+# so the byte-equality backstop and the sync tests can never list a different
+# set of files than sync.py actually mirrors.
+sys.path.insert(0, str(CLAUDE_TREE / "scripts"))
+import sync as _sync  # noqa: E402
+SHARED_FILES = _sync.SHARED
 
 
 def run(args, cwd):
@@ -237,8 +245,7 @@ class TestPackaging(unittest.TestCase):
 
     def test_claude_and_codex_trees_in_sync(self):
         """JT-15: the shared files of both packagings must be byte-identical."""
-        for rel in ("SKILL.md", "scripts/jira.py", "scripts/install-board-hook.py",
-                    "scripts/sync.py", "references/schema.md"):
+        for rel in SHARED_FILES:
             a = (CLAUDE_TREE / rel).read_bytes()
             b = (CODEX_TREE / rel).read_bytes()
             self.assertEqual(a, b, f"{rel} differs between .claude and .codex trees")
@@ -246,53 +253,69 @@ class TestPackaging(unittest.TestCase):
 
 class TestSyncScript(unittest.TestCase):
     """JT-48: scripts/sync.py mirrors the shared files from .claude (the single
-    source) into .codex, and with --global refreshes external installs."""
+    source) into .codex, and with --global refreshes external installs.
 
-    SYNC = CLAUDE_TREE / "scripts/sync.py"
-    SHARED = ("SKILL.md", "scripts/jira.py", "scripts/install-board-hook.py",
-              "scripts/sync.py", "references/schema.md")
+    Each test runs against an isolated temp copy of both trees (sync.py anchors
+    its source to the .claude tree above the script, so the temp copy is self-
+    contained) — the real repo is never mutated by the suite."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        root = Path(self._tmp.name)
+        self.claude = root / ".claude/skills/jira-tracker"
+        self.codex = root / ".codex/skills/jira-tracker"
+        ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "board.lock")
+        shutil.copytree(CLAUDE_TREE, self.claude, ignore=ignore)
+        shutil.copytree(CODEX_TREE, self.codex, ignore=ignore)
+        self.sync = self.claude / "scripts/sync.py"
+
+    def _run(self, *flags, env=None):
+        return subprocess.run([sys.executable, str(self.sync), *flags],
+                              capture_output=True, text=True, env=env)
 
     def test_sync_script_exists_in_both_trees(self):
-        self.assertTrue(self.SYNC.exists(), "scripts/sync.py missing from .claude tree")
+        self.assertTrue((CLAUDE_TREE / "scripts/sync.py").exists(),
+                        "scripts/sync.py missing from .claude tree")
         self.assertTrue((CODEX_TREE / "scripts/sync.py").exists(),
                         "scripts/sync.py missing from .codex tree")
 
     def test_check_mode_passes_on_a_synced_repo(self):
-        """--check exits 0 when the trees already match (the committed state)."""
-        r = subprocess.run([sys.executable, str(self.SYNC), "--check"],
-                           capture_output=True, text=True)
+        """--check exits 0 when the trees already match (freshly copied state)."""
+        r = self._run("--check")
         self.assertEqual(r.returncode, 0, f"--check failed on a synced repo: {r.stdout}{r.stderr}")
 
     def test_sync_restores_a_diverged_codex_file(self):
         """Corrupt a .codex shared file, run sync, confirm it is restored from
         .claude — and that --check flagged the drift beforehand."""
-        target = CODEX_TREE / "references/schema.md"
+        target = self.codex / "references/schema.md"
         original = target.read_bytes()
-        try:
-            target.write_bytes(original + b"\n<!-- drift -->\n")
-            check = subprocess.run([sys.executable, str(self.SYNC), "--check"],
-                                   capture_output=True, text=True)
-            self.assertNotEqual(check.returncode, 0, "--check did not detect the drift")
+        target.write_bytes(original + b"\n<!-- drift -->\n")
 
-            r = subprocess.run([sys.executable, str(self.SYNC)],
-                               capture_output=True, text=True)
-            self.assertEqual(r.returncode, 0, f"sync failed: {r.stderr}")
-            self.assertEqual(target.read_bytes(), original,
-                             "sync did not restore the diverged .codex file from .claude")
-        finally:
-            target.write_bytes(original)
+        check = self._run("--check")
+        self.assertNotEqual(check.returncode, 0, "--check did not detect the drift")
+
+        r = self._run()
+        self.assertEqual(r.returncode, 0, f"sync failed: {r.stderr}")
+        self.assertEqual(target.read_bytes(), original,
+                         "sync did not restore the diverged .codex file from .claude")
 
     def test_sync_preserves_codex_only_files(self):
         """The .codex tree has agents/openai.yaml with no .claude counterpart;
         sync must not delete it."""
-        codex_only = CODEX_TREE / "agents/openai.yaml"
+        codex_only = self.codex / "agents/openai.yaml"
         self.assertTrue(codex_only.exists(), "precondition: codex-only file should exist")
         before = codex_only.read_bytes()
-        r = subprocess.run([sys.executable, str(self.SYNC)],
-                           capture_output=True, text=True)
+        r = self._run()
         self.assertEqual(r.returncode, 0, f"sync failed: {r.stderr}")
         self.assertTrue(codex_only.exists(), "sync deleted a codex-only file")
         self.assertEqual(codex_only.read_bytes(), before)
+
+    def test_check_and_global_are_mutually_exclusive(self):
+        """--check and --global together must error, not silently skip --global."""
+        r = self._run("--check", "--global")
+        self.assertNotEqual(r.returncode, 0, "--check --global should be rejected")
+        self.assertIn("not allowed with", r.stderr)
 
     def test_global_flag_copies_into_a_redirected_home(self):
         """--global refreshes ~/.claude and $CODEX_HOME installs. Redirect both
@@ -300,8 +323,7 @@ class TestSyncScript(unittest.TestCase):
         installs."""
         with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as codex_home:
             env = dict(os.environ, HOME=home, CODEX_HOME=codex_home)
-            r = subprocess.run([sys.executable, str(self.SYNC), "--global"],
-                               capture_output=True, text=True, env=env)
+            r = self._run("--global", env=env)
             self.assertEqual(r.returncode, 0, f"--global failed: {r.stderr}")
             gc = Path(home) / ".claude/skills/jira-tracker/scripts/jira.py"
             gx = Path(codex_home) / "skills/jira-tracker/scripts/jira.py"

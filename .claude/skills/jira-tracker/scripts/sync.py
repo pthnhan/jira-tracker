@@ -20,10 +20,26 @@ import shutil
 import sys
 from pathlib import Path
 
-# scripts/sync.py -> jira-tracker -> skills -> .claude -> <repo root>
 SKILL_SUBPATH = Path("skills/jira-tracker")
-CLAUDE_SKILL = Path(__file__).resolve().parents[1]      # .../.claude/skills/jira-tracker
-REPO = CLAUDE_SKILL.parents[2]                          # <repo root>
+
+
+def _find_repo(start: Path) -> Path:
+    """Locate the repo root by walking up to the first ancestor holding a
+    .claude/skills/jira-tracker tree. sync.py is byte-identical in both the
+    .claude and .codex copies, so resolving the source from __file__'s position
+    would flip the source-of-truth when the .codex copy is run; anchoring to the
+    .claude tree keeps .claude authoritative no matter which copy is launched."""
+    for parent in start.parents:
+        if (parent / ".claude" / SKILL_SUBPATH).is_dir():
+            return parent
+    raise SystemExit(
+        "sync.py: could not locate the repo root "
+        "(no .claude/skills/jira-tracker above this script)"
+    )
+
+
+REPO = _find_repo(Path(__file__).resolve())            # <repo root>
+CLAUDE_SKILL = REPO / ".claude" / SKILL_SUBPATH        # the single source of truth
 CODEX_SKILL = REPO / ".codex" / SKILL_SUBPATH
 
 # Files that must be identical across both packagings. Anything not listed
@@ -37,12 +53,24 @@ SHARED = (
 )
 
 
+def _require_src(src: Path, rel: str):
+    """A SHARED entry with no source file means the list and the tree have
+    drifted (e.g. a renamed/deleted file left in SHARED). Fail loudly rather
+    than with a bare FileNotFoundError traceback."""
+    if not src.exists():
+        raise SystemExit(
+            f"sync.py: '{rel}' is listed in SHARED but missing from the source "
+            f"tree ({src.parent}); update SHARED."
+        )
+
+
 def _differing(src_root: Path, dst_root: Path):
     """Return the shared files whose bytes differ (or are missing) in dst."""
     out = []
     for rel in SHARED:
         src = src_root / rel
         dst = dst_root / rel
+        _require_src(src, rel)
         if not dst.exists() or dst.read_bytes() != src.read_bytes():
             out.append(rel)
     return out
@@ -52,6 +80,7 @@ def _copy_shared(src_root: Path, dst_root: Path):
     for rel in SHARED:
         src = src_root / rel
         dst = dst_root / rel
+        _require_src(src, rel)
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
 
@@ -69,10 +98,11 @@ def _copy_tree(src_root: Path, dst_root: Path):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Sync the jira-tracker skill package.")
-    ap.add_argument("--check", action="store_true",
-                    help="verify the .codex mirror matches .claude; exit 1 on drift")
-    ap.add_argument("--global", dest="globl", action="store_true",
-                    help="also refresh ~/.claude and $CODEX_HOME (default ~/.codex)")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true",
+                      help="verify the .codex mirror matches .claude; exit 1 on drift")
+    mode.add_argument("--global", dest="globl", action="store_true",
+                      help="also refresh ~/.claude and $CODEX_HOME (default ~/.codex)")
     args = ap.parse_args(argv)
 
     if args.check:
@@ -90,8 +120,11 @@ def main(argv=None):
     print(f"synced {len(SHARED)} shared files: .claude -> .codex")
 
     if args.globl:
-        home = Path(os.environ.get("HOME", Path.home()))
-        codex_home = Path(os.environ.get("CODEX_HOME", home / ".codex"))
+        # `or` (not get's default) so a set-but-empty HOME/CODEX_HOME — common in
+        # CI/containers — doesn't collapse to a relative path that rmtree would
+        # then resolve against the cwd.
+        home = Path(os.environ.get("HOME") or Path.home())
+        codex_home = Path(os.environ.get("CODEX_HOME") or home / ".codex")
         g_claude = home / ".claude" / SKILL_SUBPATH
         g_codex = codex_home / SKILL_SUBPATH
         _copy_tree(CLAUDE_SKILL, g_claude)
