@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-10T10:53:48+07:00",
-    "counter": 55
+    "updated": "2026-06-10T13:41:28+07:00",
+    "counter": 57
   },
   "types": [
     "Epic",
@@ -1566,6 +1566,82 @@
         {
           "at": "2026-06-10T10:53:48+07:00",
           "from": "",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-56",
+      "type": "Bug",
+      "title": "Step 1 board-creation prompt: resolve 'Not now' vs 'always offer' contradiction and harness/headless gaps",
+      "description": "Code review of JT-55 found 6 issues: always-offer rule overrides the Not-now suppression; .codex mirror's primary instruction names a Claude-Code-only tool; session-scoped suppression isn't durable (add a .jira/.no-board marker); no headless/subagent guidance; fallback drops the Not-now option; 'Yes, create the board' label implies immediate creation.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T13:32:11+07:00",
+      "updated": "2026-06-10T13:34:07+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T13:32:20+07:00",
+          "body": "Rewriting SKILL.md Step 1: harness-neutral prompt instruction, durable .jira/.no-board opt-out, headless guidance, fallback carries options, no-re-ask carve-out on the summary rule, clarified Yes-option description. Will sync mirrors + global installs and run tests."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T13:34:07+07:00",
+          "body": "Rewrote SKILL.md Step 1 (lines 105-142): primary instruction is now harness-neutral ('the harness's interactive multiple-choice prompt tool — AskUserQuestion in Claude Code'); added a third option 'No, don't ask again' backed by a durable .jira/.no-board marker checked at the top of Step 1; added headless/subagent guidance (proceed as Not-now, mention the offer in the summary); plain-text fallback now carries the options and maps 'no' to Not-now; summary/review offer is at-most-once-per-session and respects declines/marker; Yes-option description notes the seed plan is reviewed before writing. Propagated via sync.py --global (.codex mirror + both global installs); 191 tests pass."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T13:32:11+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T13:32:20+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T13:34:07+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-57",
+      "type": "Task",
+      "title": "Skill: ask git-tracking preference for .jira/ at board creation",
+      "description": "Many users don't want .jira/ pushed to git. Step 2 now asks (interactive prompt) how to handle it: commit the board (default), append .jira/ to .gitignore (shared ignore), or append to .git/info/exclude (local-only ignore). Headless runs default to committing. Operating principles updated to reflect the choice.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T13:40:10+07:00",
+      "updated": "2026-06-10T13:41:28+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T13:41:28+07:00",
+          "body": "SKILL.md Workflow 1 Step 2 now asks (interactive prompt, may ride alongside seed-plan approval): commit .jira/ (default, also the headless default), append .jira/ to .gitignore (shared ignore, board stays machine-local), or append to .git/info/exclude (local-only ignore); skipped for non-git repos, ignore entry applied after init. Operating principles bullet updated to honor the choice; README mentions the new question. Synced .codex mirror + global installs via sync.py --global; 191 tests pass."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T13:40:10+07:00",
+          "from": "",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T13:41:28+07:00",
+          "from": "In Progress",
           "to": "Done"
         }
       ]

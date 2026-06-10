@@ -104,29 +104,42 @@ Check for `.jira/board.json` or `.jira/board.html`.
 
 ### Step 1 - Ask before creating a board
 
+First check for the opt-out marker: if `.jira/.no-board` exists, the user has
+already declined tracking for this repo — skip the offer entirely (an explicit
+"create the board" / `/init` still wins: delete the marker and proceed).
+
 If there is no board and the request was an *implicit* start-work or
-repo-analysis cue (not an explicit "create the board" / `/init`), **ask first**
-— and ask with the **`AskUserQuestion` tool** (interactive multiple-choice
-prompt), *not* as plain text in your reply. A plain-text question is easy to
-scroll past and ignore; the tool blocks until the user picks an option.
+repo-analysis cue (not an explicit "create the board" / `/init`), **ask
+first** — using the harness's **interactive multiple-choice prompt tool**
+(`AskUserQuestion` in Claude Code), *not* plain text in your reply. A
+plain-text question is easy to scroll past and ignore; an interactive prompt
+blocks until the user picks an option.
 
 - Question: "This repo isn't tracked yet. Create a Jira-style board for it?"
 - Options:
-  1. **"Yes, create the board"** — scan the repo and propose a seed plan
-     (Step 2).
+  1. **"Yes, create the board"** — scan the repo and propose a seed plan for
+     the user to review before anything is written (Step 2).
   2. **"Not now"** — continue with the request without tracking, and don't
      re-ask this session.
+  3. **"No, don't ask again"** — create an empty `.jira/.no-board` marker
+     file; while it exists, never make this offer again in any session.
 
-If the `AskUserQuestion` tool is not available in the current environment
-(e.g. Codex or another non-Claude-Code harness), fall back to the same
-question as plain text and wait for a yes.
+If no interactive prompt tool is available in the current environment, fall
+back to asking the same question **and options** as plain text, and wait for
+an explicit answer — a plain "no" gets the same treatment as "Not now".
+
+If no human can answer — a headless/CI run, or a subagent without interactive
+tools — don't block on the question: proceed as if "Not now" and mention the
+offer in your final summary instead.
 
 If the user explicitly asked to set up tracking or ran `/init`, skip the
 question and go straight to proposing the seed plan.
 
 For summary/review prompts, do not stop at a plain list of findings. After the
-summary, always present the board-creation offer above (via `AskUserQuestion`)
-so the user can turn the analysis into tracked Done and To Do items.
+summary, present the board-creation offer above so the user can turn the
+analysis into tracked Done and To Do items — unless it was already made or
+declined this session, or `.jira/.no-board` exists; the offer is made at most
+once per session.
 
 ### Step 2 - Create and seed after the user agrees
 
@@ -135,7 +148,24 @@ so the user can turn the analysis into tracked Done and To Do items.
 2. **Propose the seed plan and let the user review it before writing** (see
    "Tiered board writes" below): list the issues you intend to create with
    their types and statuses, then apply only after they approve.
-3. Run `init`, then create the issues.
+3. **Ask how `.jira/` should interact with git** — many users don't want the
+   board pushed. Ask with the same interactive multiple-choice prompt tool
+   (alongside the seed-plan approval is fine):
+   - Question: "Should the board (`.jira/`) be committed to git?"
+   - Options:
+     1. **"Commit it"** — no ignore entry; the board travels with the repo
+        and works the same on a fresh clone.
+     2. **"Ignore via .gitignore"** — append `.jira/` to the repo's
+        `.gitignore` (create it if needed). The ignore rule is shared with
+        everyone who clones; each machine keeps its own local board.
+     3. **"Ignore locally only"** — append `.jira/` to `.git/info/exclude`.
+        Nothing tracker-related is committed, and the ignore applies to this
+        machine only.
+   If no human can answer (headless/non-interactive), default to **"Commit
+   it"** and say so in the summary. If the repo is not a git repository, skip
+   the question.
+4. Run `init`, then create the issues, then apply the chosen ignore entry (if
+   any).
 
 **Seed to reflect reality: an existing repo starts mostly Done.** The board
 should mirror the repo's *current* state, not an imaginary backlog:
@@ -420,8 +450,11 @@ merge-conflict recipe in Workflow 6 above.
   standalone work that changed files and has no parent to fold into gets
   recorded: propose a small issue (status Done if already finished) instead of
   leaving the change off the board.
-- The board is committed with the repo (it's just files under `.jira/`), so it
-  travels with the project and works the same on a fresh clone.
+- By default the board is committed with the repo (it's just files under
+  `.jira/`), so it travels with the project and works the same on a fresh
+  clone. If the user chose a git-ignore option at creation (Workflow 1
+  Step 2) — `.jira/` in `.gitignore` or `.git/info/exclude` — the board is
+  machine-local instead; honor that choice and don't propose committing it.
 
 See `references/schema.md` for the exact `board.json` structure if you ever need
 to read it programmatically.

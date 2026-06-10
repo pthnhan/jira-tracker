@@ -46,7 +46,9 @@ When used, the board itself lives in the repo root under:
 
 1. **`/init`, or *any* cue that you're starting work** ("let's start on this
    repo", "read this repo", "help me work here") → if the repo isn't tracked yet
-   it **asks first** ("want me to create a board?"), then seeds it. For an
+   it **asks first** ("want me to create a board?") along with whether
+   `.jira/` should be committed or git-ignored (`.gitignore` or
+   `.git/info/exclude`), then seeds it. For an
    **existing codebase the already-built work is created as `Done`** so the board
    reflects the repo's real current state, with a short list of open items
    (TODOs, bugs, unfinished work). A blank repo gets a small `To Do` starter
