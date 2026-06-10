@@ -1567,5 +1567,367 @@ class TestArtifactSync(unittest.TestCase):
                     )
 
 
+# --------------------------------------------------------------------------- #
+# FEATURE 1: Activity history
+# --------------------------------------------------------------------------- #
+
+class TestHistory(BoardTestCase):
+    """Append-only status-transition history per issue."""
+
+    def test_add_initializes_history_with_creation_entry(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        i = self.issue("TST-1")
+        self.assertIn("history", i)
+        self.assertEqual(len(i["history"]), 1)
+        entry = i["history"][0]
+        self.assertEqual(entry["from"], "")
+        self.assertEqual(entry["to"], "To Do")
+        self.assertEqual(entry["at"], i["created"])
+
+    def test_add_with_explicit_status_records_that_status(self):
+        self.cli("add", "--type", "Task", "--title", "T", "--status", "In Progress")
+        i = self.issue("TST-1")
+        self.assertEqual(i["history"][0], {"at": i["created"], "from": "", "to": "In Progress"})
+
+    def test_move_appends_transition(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "In Progress")
+        self.cli("move", "TST-1", "Done")
+        hist = self.issue("TST-1")["history"]
+        self.assertEqual(len(hist), 3)
+        self.assertEqual((hist[1]["from"], hist[1]["to"]), ("To Do", "In Progress"))
+        self.assertEqual((hist[2]["from"], hist[2]["to"]), ("In Progress", "Done"))
+
+    def test_move_noop_does_not_append_duplicate(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "In Progress")
+        before = self.issue("TST-1")["history"]
+        self.cli("move", "TST-1", "In Progress")  # no-op
+        after = self.issue("TST-1")["history"]
+        self.assertEqual(len(before), len(after))
+
+    def test_show_displays_history_section(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "In Progress")
+        r = self.cli("show", "TST-1")
+        self.assertIn("History", r.stdout)
+        self.assertIn("To Do", r.stdout)
+        self.assertIn("In Progress", r.stdout)
+
+    def test_backward_compat_board_without_history(self):
+        """An older board whose issues lack a 'history' key must not crash and
+        must not be retro-filled on load."""
+        board = self.board()
+        board["issues"].append({
+            "key": "TST-1", "type": "Task", "title": "Legacy", "description": "",
+            "status": "In Progress", "priority": "Medium", "parent": None,
+            "labels": [], "components": [], "assignee": "",
+            "created": "2026-01-01T00:00:00+00:00", "updated": "2026-01-01T00:00:00+00:00",
+            "comments": [],  # NOTE: no "history" key
+        })
+        board["project"]["counter"] = 1
+        (self.dir / ".jira/board.json").write_text(json.dumps(board))
+        # show, doctor, status, list must all work
+        r = self.cli("show", "TST-1")
+        self.assertIn("TST-1", r.stdout)
+        self.cli("doctor")  # healthy or at least not a crash; exit code asserted by ok=True
+        self.cli("status")
+        self.cli("list", "--all")
+        # not retro-filled on load (show is read-only)
+        self.assertNotIn("history", self.issue("TST-1"))
+
+    def test_move_on_legacy_issue_creates_history_from_old_status(self):
+        board = self.board()
+        board["issues"].append({
+            "key": "TST-1", "type": "Task", "title": "Legacy", "description": "",
+            "status": "To Do", "priority": "Medium", "parent": None,
+            "labels": [], "components": [], "assignee": "",
+            "created": "2026-01-01T00:00:00+00:00", "updated": "2026-01-01T00:00:00+00:00",
+            "comments": [],
+        })
+        board["project"]["counter"] = 1
+        (self.dir / ".jira/board.json").write_text(json.dumps(board))
+        self.cli("move", "TST-1", "In Progress")
+        hist = self.issue("TST-1")["history"]
+        self.assertEqual(len(hist), 1)
+        self.assertEqual((hist[0]["from"], hist[0]["to"]), ("To Do", "In Progress"))
+
+
+# --------------------------------------------------------------------------- #
+# FEATURE 2: Bulk move / set
+# --------------------------------------------------------------------------- #
+
+class TestBulkMove(BoardTestCase):
+
+    def test_single_key_move_still_works(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("move", "TST-1", "Done")
+        self.assertEqual(self.issue("TST-1")["status"], "Done")
+
+    def test_bulk_move_multiple_keys(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        self.cli("add", "--type", "Task", "--title", "C")
+        r = self.cli("move", "TST-1", "TST-2", "TST-3", "Done")
+        for k in ("TST-1", "TST-2", "TST-3"):
+            self.assertEqual(self.issue(k)["status"], "Done")
+            self.assertIn(k, r.stdout)
+
+    def test_bulk_move_invalid_key_aborts_all(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        r = self.cli("move", "TST-1", "TST-99", "Done", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        # nothing changed
+        self.assertEqual(self.issue("TST-1")["status"], "To Do")
+        self.assertEqual(self.issue("TST-2")["status"], "To Do")
+
+    def test_bulk_move_invalid_status_aborts_all(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        r = self.cli("move", "TST-1", "TST-2", "bogusstatus", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.issue("TST-1")["status"], "To Do")
+        self.assertEqual(self.issue("TST-2")["status"], "To Do")
+
+    def test_bulk_move_records_history_per_issue(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        self.cli("move", "TST-1", "TST-2", "In Progress")
+        for k in ("TST-1", "TST-2"):
+            hist = self.issue(k)["history"]
+            self.assertEqual(hist[-1]["to"], "In Progress")
+
+    def test_bulk_move_reopen_guard_applies_to_each(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        self.cli("move", "TST-1", "Done")
+        # reopening TST-1 without comment must fail and change nothing
+        r = self.cli("move", "TST-1", "TST-2", "To Do", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.issue("TST-1")["status"], "Done")
+        self.assertEqual(self.issue("TST-2")["status"], "To Do")
+
+
+class TestBulkSet(BoardTestCase):
+
+    def test_single_key_set_still_works(self):
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.cli("set", "TST-1", "--priority", "High")
+        self.assertEqual(self.issue("TST-1")["priority"], "High")
+
+    def test_bulk_set_multiple_keys(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        r = self.cli("set", "TST-1", "TST-2", "--priority", "High")
+        for k in ("TST-1", "TST-2"):
+            self.assertEqual(self.issue(k)["priority"], "High")
+            self.assertIn(k, r.stdout)
+
+    def test_bulk_set_invalid_key_aborts_all(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        r = self.cli("set", "TST-1", "TST-99", "--priority", "High", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.issue("TST-1")["priority"], "Medium")
+
+    def test_bulk_set_invalid_value_aborts_all(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        r = self.cli("set", "TST-1", "TST-2", "--priority", "Bogus", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(self.issue("TST-1")["priority"], "Medium")
+        self.assertEqual(self.issue("TST-2")["priority"], "Medium")
+
+    def test_bulk_set_requires_a_field(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        r = self.cli("set", "TST-1", "TST-2", ok=False)
+        self.assertNotEqual(r.returncode, 0)
+
+
+class TestSearch(BoardTestCase):
+    """JT: `search` — case-insensitive substring across all issues/fields."""
+
+    def test_matches_title(self):
+        self.cli("add", "--type", "Task", "--title", "Fix the widget")
+        self.cli("add", "--type", "Task", "--title", "Unrelated")
+        r = self.cli("search", "widget")
+        self.assertIn("TST-1", r.stdout)
+        self.assertNotIn("TST-2", r.stdout)
+
+    def test_matches_description(self):
+        self.cli("add", "--type", "Task", "--title", "A", "--desc", "needle in here")
+        r = self.cli("search", "needle")
+        self.assertIn("TST-1", r.stdout)
+
+    def test_matches_comment_body(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("comment", "TST-1", "this is a special remark")
+        r = self.cli("search", "special")
+        self.assertIn("TST-1", r.stdout)
+        self.assertIn("matched: comment", r.stdout)
+
+    def test_matches_label(self):
+        self.cli("add", "--type", "Task", "--title", "A", "--labels", "backend,urgent")
+        r = self.cli("search", "urgent")
+        self.assertIn("TST-1", r.stdout)
+
+    def test_matches_component(self):
+        self.cli("add", "--type", "Task", "--title", "A", "--components", "auth-service")
+        r = self.cli("search", "auth-service")
+        self.assertIn("TST-1", r.stdout)
+
+    def test_matches_key(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        r = self.cli("search", "tst-1")
+        self.assertIn("TST-1", r.stdout)
+
+    def test_case_insensitive(self):
+        self.cli("add", "--type", "Task", "--title", "Fix the WIDGET")
+        r = self.cli("search", "widget")
+        self.assertIn("TST-1", r.stdout)
+
+    def test_finds_done_issues(self):
+        self.cli("add", "--type", "Task", "--title", "shipped feature")
+        self.cli("move", "TST-1", "Done")
+        r = self.cli("search", "shipped")
+        self.assertIn("TST-1", r.stdout)
+
+    def test_no_match_exits_zero(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        r = self.cli("search", "zzzznomatch")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("no matches", r.stdout.lower())
+
+    def test_json_shape(self):
+        self.cli("add", "--type", "Task", "--title", "Fix the widget")
+        r = self.cli("search", "widget", "--json")
+        payload = json.loads(r.stdout)
+        self.assertIn("issues", payload)
+        self.assertEqual([i["key"] for i in payload["issues"]], ["TST-1"])
+
+    def test_json_no_match_is_empty_list(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        r = self.cli("search", "zzzznomatch", "--json")
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(json.loads(r.stdout), {"issues": []})
+
+
+class TestReport(BoardTestCase):
+    """JT: `report` — read-only metrics summary."""
+
+    def test_total_and_status_counts(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Bug", "--title", "B")
+        self.cli("move", "TST-2", "In Progress")
+        r = self.cli("report", "--json")
+        m = json.loads(r.stdout)
+        self.assertEqual(m["total"], 2)
+        self.assertEqual(m["by_status"]["To Do"], 1)
+        self.assertEqual(m["by_status"]["In Progress"], 1)
+
+    def test_type_and_priority_counts(self):
+        self.cli("add", "--type", "Task", "--title", "A", "--priority", "High")
+        self.cli("add", "--type", "Bug", "--title", "B", "--priority", "High")
+        r = self.cli("report", "--json")
+        m = json.loads(r.stdout)
+        self.assertEqual(m["by_type"]["Task"], 1)
+        self.assertEqual(m["by_type"]["Bug"], 1)
+        self.assertEqual(m["by_priority"]["High"], 2)
+
+    def test_stale_count_uses_existing_logic(self):
+        # Fabricate a board with an In Progress issue updated long ago.
+        self.cli("add", "--type", "Task", "--title", "stale one")
+        self.cli("move", "TST-1", "In Progress")
+        b = self.board()
+        old = "2000-01-01T00:00:00+00:00"
+        for i in b["issues"]:
+            if i["key"] == "TST-1":
+                i["updated"] = old
+        (self.dir / ".jira/board.json").write_text(json.dumps(b))
+        r = self.cli("report", "--json")
+        m = json.loads(r.stdout)
+        self.assertEqual(m["stale"], 1)
+
+    def test_cycle_time_math_on_known_history(self):
+        # Two completed issues with known creation->Done spans (2 and 4 days).
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        b = self.board()
+        for i in b["issues"]:
+            if i["key"] == "TST-1":
+                i["created"] = "2024-01-01T00:00:00+00:00"
+                i["history"] = [
+                    {"at": "2024-01-01T00:00:00+00:00", "from": "", "to": "To Do"},
+                    {"at": "2024-01-03T00:00:00+00:00", "from": "To Do", "to": "Done"},
+                ]
+                i["status"] = "Done"
+            if i["key"] == "TST-2":
+                i["created"] = "2024-01-01T00:00:00+00:00"
+                i["history"] = [
+                    {"at": "2024-01-01T00:00:00+00:00", "from": "", "to": "To Do"},
+                    {"at": "2024-01-05T00:00:00+00:00", "from": "To Do", "to": "Done"},
+                ]
+                i["status"] = "Done"
+        (self.dir / ".jira/board.json").write_text(json.dumps(b))
+        r = self.cli("report", "--json")
+        m = json.loads(r.stdout)
+        self.assertEqual(m["cycle_time"]["count"], 2)
+        self.assertAlmostEqual(m["cycle_time"]["avg_days"], 3.0)
+        self.assertAlmostEqual(m["cycle_time"]["median_days"], 3.0)
+
+    def test_cycle_time_uses_first_transition_into_terminal(self):
+        # A reopened issue: first Done at day 2, reopened, Done again at day 10.
+        # Cycle time must use the FIRST transition into Done (2 days).
+        self.cli("add", "--type", "Task", "--title", "A")
+        b = self.board()
+        for i in b["issues"]:
+            if i["key"] == "TST-1":
+                i["created"] = "2024-01-01T00:00:00+00:00"
+                i["history"] = [
+                    {"at": "2024-01-01T00:00:00+00:00", "from": "", "to": "To Do"},
+                    {"at": "2024-01-03T00:00:00+00:00", "from": "To Do", "to": "Done"},
+                    {"at": "2024-01-05T00:00:00+00:00", "from": "Done", "to": "In Progress"},
+                    {"at": "2024-01-11T00:00:00+00:00", "from": "In Progress", "to": "Done"},
+                ]
+                i["status"] = "Done"
+        (self.dir / ".jira/board.json").write_text(json.dumps(b))
+        r = self.cli("report", "--json")
+        m = json.loads(r.stdout)
+        self.assertEqual(m["cycle_time"]["count"], 1)
+        self.assertAlmostEqual(m["cycle_time"]["avg_days"], 2.0)
+
+    def test_report_without_history_does_not_crash(self):
+        # Simulate an old board: strip history entirely.
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("move", "TST-1", "Done")
+        b = self.board()
+        for i in b["issues"]:
+            i.pop("history", None)
+        (self.dir / ".jira/board.json").write_text(json.dumps(b))
+        r = self.cli("report", "--json")
+        self.assertEqual(r.returncode, 0)
+        m = json.loads(r.stdout)
+        self.assertEqual(m["cycle_time"]["count"], 0)
+        self.assertIsNone(m["cycle_time"]["avg_days"])
+        self.assertIsNone(m["cycle_time"]["median_days"])
+        self.assertEqual(m["total"], 1)
+
+    def test_report_human_output(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        r = self.cli("report")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("total", r.stdout.lower())
+
+    def test_report_json_shape(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        r = self.cli("report", "--json")
+        m = json.loads(r.stdout)
+        for k in ("total", "by_status", "by_type", "by_priority", "stale", "cycle_time"):
+            self.assertIn(k, m)
+        for k in ("count", "avg_days", "median_days"):
+            self.assertIn(k, m["cycle_time"])
+
+
 if __name__ == "__main__":
     unittest.main()

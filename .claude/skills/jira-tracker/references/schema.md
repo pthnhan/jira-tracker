@@ -36,6 +36,10 @@ re-renders `board.html`); this doc is for reading.
       "comments": [
         { "author": "agent", "at": "2026-06-02T10:25:00+07:00",
           "body": "Drafted the queue interface in infra/queue.py." }
+      ],
+      "history": [                // append-only status-transition log (see note)
+        { "at": "2026-06-02T10:00:00+07:00", "from": "",            "to": "To Do" },
+        { "at": "2026-06-02T10:25:00+07:00", "from": "To Do",       "to": "In Progress" }
       ]
     }
   ]
@@ -70,6 +74,15 @@ re-renders `board.html`); this doc is for reading.
   `In Progress`, `review` → `In Review`) and normalizes to the canonical value.
 - **comments** — append-only audit trail. This is where the "what I actually did"
   history lives; keep it specific. No edit or delete operation exists.
+- **history** — append-only log of status transitions, oldest first. Each entry
+  is `{ "at": <iso8601>, "from": <previous status or ""> , "to": <new status> }`.
+  `add` seeds one entry stamped at the issue's `created` time with `from: ""`
+  and `to: <initial status>`. `move` appends one entry per status change; a
+  no-op move (target equals current status) appends nothing. Bulk
+  `move KEY1 KEY2 … STATUS` records an entry per affected issue. Older boards
+  may lack this key entirely — it is treated as empty everywhere and is **never**
+  retro-filled on load. `show` renders it under a "History:" section
+  (`From → To  (timestamp)`).
 
 ## Runtime files
 
@@ -93,6 +106,8 @@ human-readable headers or decorations). Recommended for agent programmatic use.
 | `show KEY --json` | full issue object (same fields as in `board.json`) |
 | `status --json` | `{"project": {...}, "counts": {status: n, ...}, "total": n, "in_progress": [key, ...], "in_review": [key, ...], "stale": [key, ...]}` |
 | `next --json` | `{"recommendations": [{issue object}, ...], "blocked": [{"key": ..., "blocked_by_open": [key, ...]}, ...], "in_review": [key, ...]}` |
+| `search QUERY --json` | `{"issues": [...]}` — array of full issue objects matching the query (empty array if none) |
+| `report --json` | `{"total": n, "by_status": {status: n, ...}, "by_type": {type: n, ...}, "by_priority": {priority: n, ...}, "stale": n, "stale_keys": [key, ...], "cycle_time": {"count": n, "avg_days": x\|null, "median_days": x\|null}}` |
 | `doctor --json` | `{"problems": [{"code": "...", "key": "...", "message": "..."}, ...]}` — empty array if healthy |
 
 ## `doctor` diagnostic codes
@@ -129,6 +144,28 @@ Issues with at least one open blocker appear after the main list in a separate
 
 `--limit N` caps only the `recommendations` list; the `blocked` section is
 always complete.
+
+## Search (`search`)
+
+`search QUERY` is a read-only, case-insensitive substring scan across **all**
+issues regardless of status (Done/Cancelled included). It matches the issue
+`key`, `title`, `description`, any `labels` value, any `components` value, and
+any comment `body`. Results render with the same compact one-line format as
+`list`, annotated with `(matched: ...)` listing which fields hit. With no match
+it prints a `no matches` line and exits 0 (`--json` emits `{"issues": []}`).
+
+## Report (`report`)
+
+`report` is a read-only metrics summary. It counts total issues, groups counts
+by status / type / priority, and reports the stale count (reusing the same
+`In Progress` + `>= 7d since updated` rule as `status` and `next`). When issues
+carry `history`, it computes **cycle time** = days from the issue's `created`
+timestamp to the **first** transition whose `to` is a terminal status
+(`Done` or `Cancelled`, i.e. the closed-status set), reporting `avg_days` and
+`median_days` over completed issues. Issues with no history, or no transition
+into a terminal status, are excluded from cycle time but still counted
+everywhere else; on a board with no history at all, `cycle_time.count` is 0 and
+`avg_days`/`median_days` are `null`.
 
 ## Board HTML: status colors and dynamic columns
 

@@ -270,7 +270,11 @@ def cmd_add(args):
             "created": now(),
             "updated": now(),
             "comments": [],
+            "history": [],
         }
+        # Seed history with the initial status, stamped at creation time so the
+        # first transition shares the issue's created timestamp.
+        issue["history"].append({"at": issue["created"], "from": "", "to": status})
         board["issues"].append(issue)
         save(board, args)
     print(f"created {issue['key']}  {itype}: {issue['title']}  [{status} / {priority}]"
@@ -281,17 +285,29 @@ def cmd_move(args):
     p = board_path(args)
     with board_lock(p):
         board = load(args)
-        issue = find(board, args.key)
         status = fuzzy(args.status, STATUSES, "status")
-        old = issue["status"]
-        if old in CLOSED_STATUSES and status in OPEN_STATUSES and not args.comment:
-            die(f"{issue['key']} is {old}; reopening requires --comment explaining why")
-        issue["status"] = status
-        issue["updated"] = now()
-        if args.comment:
-            issue["comments"].append({"author": args.author or "agent", "at": now(), "body": args.comment})
+        # Validate-all-first: resolve every key and run the reopen guard before
+        # mutating anything, so an invalid key (or a missing --comment on a
+        # reopen) aborts the whole batch with no partial writes.
+        issues = [find(board, k) for k in args.keys]
+        for issue in issues:
+            old = issue["status"]
+            if old in CLOSED_STATUSES and status in OPEN_STATUSES and not args.comment:
+                die(f"{issue['key']} is {old}; reopening requires --comment explaining why")
+        results = []
+        for issue in issues:
+            old = issue["status"]
+            issue["status"] = status
+            issue["updated"] = now()
+            if status != old:
+                issue.setdefault("history", []).append(
+                    {"at": now(), "from": old, "to": status})
+            if args.comment:
+                issue["comments"].append({"author": args.author or "agent", "at": now(), "body": args.comment})
+            results.append((issue["key"], old))
         save(board, args)
-    print(f"{issue['key']}: {old} -> {status}")
+    for key, old in results:
+        print(f"{key}: {old} -> {status}")
 
 
 def cmd_comment(args):
@@ -309,32 +325,62 @@ def cmd_set(args):
     p = board_path(args)
     with board_lock(p):
         board = load(args)
-        issue = find(board, args.key)
-        changed = []
+        # Validate-all-first: resolve every key, validate every field value, and
+        # check parent cycles for each target BEFORE mutating, so any failure
+        # aborts the whole batch with no partial writes.
+        issues = [find(board, k) for k in args.keys]
+
+        # Pre-validate the field values that don't depend on the target issue.
+        new_title = None
         if args.title is not None:
-            title = args.title.strip()
-            if not title:
+            new_title = args.title.strip()
+            if not new_title:
                 die("title must not be empty")
-            issue["title"] = title; changed.append("title")
-        if args.desc is not None:
-            issue["description"] = args.desc; changed.append("description")
-        if args.priority is not None:
-            issue["priority"] = fuzzy(args.priority, PRIORITIES, "priority"); changed.append("priority")
-        if args.type is not None:
-            issue["type"] = fuzzy(args.type, TYPES, "type"); changed.append("type")
+        new_priority = fuzzy(args.priority, PRIORITIES, "priority") if args.priority is not None else None
+        new_type = fuzzy(args.type, TYPES, "type") if args.type is not None else None
+
+        # parent depends on the child key (self-parent / cycle check); resolve
+        # per target up-front so an invalid parent aborts before any mutation.
+        resolved_parents = {}
         if args.parent is not None:
-            issue["parent"] = None if args.parent == "" else resolve_parent(board, args.parent, issue["key"]); changed.append("parent")
-        if args.assignee is not None:
-            issue["assignee"] = args.assignee; changed.append("assignee")
-        if args.labels is not None:
-            issue["labels"] = split_csv(args.labels); changed.append("labels")
-        if args.components is not None:
-            issue["components"] = split_csv(args.components); changed.append("components")
-        if not changed:
+            for issue in issues:
+                resolved_parents[issue["key"]] = (
+                    None if args.parent == "" else resolve_parent(board, args.parent, issue["key"]))
+
+        # Determine which fields are being set (same for every key).
+        fields = []
+        if args.title is not None: fields.append("title")
+        if args.desc is not None: fields.append("description")
+        if args.priority is not None: fields.append("priority")
+        if args.type is not None: fields.append("type")
+        if args.parent is not None: fields.append("parent")
+        if args.assignee is not None: fields.append("assignee")
+        if args.labels is not None: fields.append("labels")
+        if args.components is not None: fields.append("components")
+        if not fields:
             die("nothing to set — pass at least one field flag")
-        issue["updated"] = now()
+
+        for issue in issues:
+            if args.title is not None:
+                issue["title"] = new_title
+            if args.desc is not None:
+                issue["description"] = args.desc
+            if args.priority is not None:
+                issue["priority"] = new_priority
+            if args.type is not None:
+                issue["type"] = new_type
+            if args.parent is not None:
+                issue["parent"] = resolved_parents[issue["key"]]
+            if args.assignee is not None:
+                issue["assignee"] = args.assignee
+            if args.labels is not None:
+                issue["labels"] = split_csv(args.labels)
+            if args.components is not None:
+                issue["components"] = split_csv(args.components)
+            issue["updated"] = now()
         save(board, args)
-    print(f"{issue['key']}: updated {', '.join(changed)}")
+    for issue in issues:
+        print(f"{issue['key']}: updated {', '.join(fields)}")
 
 
 def cmd_set_project(args):
@@ -376,6 +422,14 @@ def _sort_key(issue):
             issue["created"])
 
 
+def _format_issue_line(i, suffix=""):
+    """Compact one-line rendering of an issue (shared by list/search)."""
+    parent = f"  ^{i['parent']}" if i.get("parent") else ""
+    cc = f"  💬{len(i['comments'])}" if i.get("comments") else ""
+    return (f"  {i['key']:<8} {i['type']:<8} {i['priority']:<7} "
+            f"{i['status']:<12} {i['title']}{parent}{cc}{suffix}")
+
+
 def cmd_list(args):
     board = load(args)
     canonical_parent = None
@@ -393,9 +447,47 @@ def cmd_list(args):
         return
     print(f"{board['project']['name']} [{board['project']['key']}] — {len(issues)} issue(s)\n")
     for i in issues:
-        parent = f"  ^{i['parent']}" if i.get("parent") else ""
-        cc = f"  💬{len(i['comments'])}" if i["comments"] else ""
-        print(f"  {i['key']:<8} {i['type']:<8} {i['priority']:<7} {i['status']:<12} {i['title']}{parent}{cc}")
+        print(_format_issue_line(i))
+
+
+def _search_fields(issue, needle):
+    """Return a sorted list of field names where `needle` (already lowercased)
+    appears in `issue`. Searches key, title, description, labels, components,
+    and comment bodies — across ALL statuses (Done included)."""
+    hits = set()
+    if needle in str(issue.get("key", "")).lower():
+        hits.add("key")
+    if needle in str(issue.get("title", "")).lower():
+        hits.add("title")
+    if needle in str(issue.get("description", "")).lower():
+        hits.add("description")
+    if any(needle in str(v).lower() for v in issue.get("labels", [])):
+        hits.add("label")
+    if any(needle in str(v).lower() for v in issue.get("components", [])):
+        hits.add("component")
+    if any(needle in str(c.get("body", "")).lower() for c in issue.get("comments", [])):
+        hits.add("comment")
+    return sorted(hits)
+
+
+def cmd_search(args):
+    board = load(args)
+    needle = args.query.lower()
+    matched = []  # (issue, [fields])
+    for i in board["issues"]:
+        fields = _search_fields(i, needle)
+        if fields:
+            matched.append((i, fields))
+    matched.sort(key=lambda pair: _sort_key(pair[0]))
+    if getattr(args, "json", False):
+        print(json.dumps({"issues": [i for i, _ in matched]}, ensure_ascii=False))
+        return
+    if not matched:
+        print(f"no matches for {args.query!r}")
+        return
+    print(f"{len(matched)} match(es) for {args.query!r}\n")
+    for i, fields in matched:
+        print(_format_issue_line(i, suffix=f"  (matched: {', '.join(fields)})"))
 
 
 def _open_blockers(issue, by_key):
@@ -484,6 +576,14 @@ def cmd_show(args):
         print(f"\ncomments ({len(i['comments'])}):")
         for c in i["comments"]:
             print(f"  - [{c['at']}] {c['author']}: {c['body']}")
+    # History: status transitions oldest -> newest. Missing on older boards —
+    # treat as empty (do not retro-fill).
+    history = i.get("history", [])
+    if history:
+        print("\nHistory:")
+        for h in history:
+            frm = h.get("from") or "(new)"
+            print(f"  {frm} → {h.get('to', '')}  ({h.get('at', '')})")
 
 
 def cmd_status(args):
@@ -523,6 +623,106 @@ def cmd_status(args):
         print("\nin review (awaiting human review):")
         for i in in_review:
             print(f"  {i['key']:<8} {i['title']}")
+
+
+def _cycle_time_days(issue):
+    """Days from creation to the FIRST transition INTO a terminal status, or
+    None if the issue has no such transition (no history, or never closed).
+
+    Terminal statuses reuse the board's existing CLOSED_STATUSES notion rather
+    than hardcoding the literal 'Done'. The creation anchor is the issue's
+    'created' stamp (the first history entry shares it). Robust to missing
+    history and unparseable timestamps (returns None)."""
+    history = issue.get("history") or []
+    if not history:
+        return None
+    closed_at = None
+    for h in history:
+        if h.get("to") in CLOSED_STATUSES:
+            closed_at = h.get("at")
+            break
+    if not closed_at:
+        return None
+    try:
+        created = _dt.datetime.fromisoformat(issue["created"])
+        done = _dt.datetime.fromisoformat(closed_at)
+    except (ValueError, KeyError, TypeError):
+        return None
+    if created.tzinfo is None:
+        created = created.astimezone()
+    if done.tzinfo is None:
+        done = done.astimezone()
+    return (done - created).total_seconds() / 86400.0
+
+
+def _median(values):
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2:
+        return s[mid]
+    return (s[mid - 1] + s[mid]) / 2.0
+
+
+def cmd_report(args):
+    """Read-only metrics summary of the board."""
+    board = load(args)
+    issues = board["issues"]
+
+    by_status, by_type, by_priority = {}, {}, {}
+    for i in issues:
+        by_status[i.get("status", "?")] = by_status.get(i.get("status", "?"), 0) + 1
+        by_type[i.get("type", "?")] = by_type.get(i.get("type", "?"), 0) + 1
+        by_priority[i.get("priority", "?")] = by_priority.get(i.get("priority", "?"), 0) + 1
+
+    stale_keys = [i["key"] for i in issues if _is_stale(i)]
+
+    cycle_days = [d for d in (_cycle_time_days(i) for i in issues) if d is not None]
+    avg = round(sum(cycle_days) / len(cycle_days), 2) if cycle_days else None
+    med = round(_median(cycle_days), 2) if cycle_days else None
+    cycle = {"count": len(cycle_days), "avg_days": avg, "median_days": med}
+
+    metrics = {
+        "total": len(issues),
+        "by_status": by_status,
+        "by_type": by_type,
+        "by_priority": by_priority,
+        "stale": len(stale_keys),
+        "stale_keys": stale_keys,
+        "cycle_time": cycle,
+    }
+
+    if getattr(args, "json", False):
+        print(json.dumps(metrics, ensure_ascii=False))
+        return
+
+    print(f"{board['project']['name']} [{board['project']['key']}]")
+    print(f"total: {len(issues)} issue(s)")
+
+    def _block(title, counts, order):
+        print(f"\nby {title}:")
+        # canonical order first, then any extras seen on the board
+        seen = list(order) + [k for k in counts if k not in order]
+        for k in seen:
+            if counts.get(k):
+                print(f"  {k:<12} {counts[k]}")
+
+    _block("status", by_status, STATUSES)
+    _block("type", by_type, TYPES)
+    _block("priority", by_priority, PRIORITIES)
+
+    print(f"\nstale (In Progress >= {STALE_DAYS}d): {len(stale_keys)}")
+    if stale_keys:
+        print(f"  {', '.join(stale_keys)}")
+
+    print("\ncycle time (creation -> first terminal transition):")
+    if cycle["count"]:
+        print(f"  completed: {cycle['count']}   "
+              f"avg: {cycle['avg_days']}d   median: {cycle['median_days']}d")
+    else:
+        print("  no completed issues with history")
 
 
 def cmd_doctor(args):
@@ -674,6 +874,15 @@ def cmd_doctor(args):
                     _dt.datetime.fromisoformat(val)
                 except ValueError:
                     prob("bad_timestamp", k, f"{k}: comment timestamp {val!r} is not valid ISO-8601")
+        # history entries are optional (older boards lack the key — treated as
+        # empty, never retro-filled); validate timestamps when present.
+        for h in i.get("history", []):
+            val = h.get("at")
+            if val:
+                try:
+                    _dt.datetime.fromisoformat(val)
+                except ValueError:
+                    prob("bad_timestamp", k, f"{k}: history timestamp {val!r} is not valid ISO-8601")
 
     if getattr(args, "json", False):
         print(json.dumps({"problems": problems}, ensure_ascii=False))
@@ -1555,8 +1764,13 @@ def build_parser():
     s.add_argument("--assignee")
     s.set_defaults(func=cmd_add)
 
-    s = sub.add_parser("move", help="change an issue's status", parents=[common])
-    s.add_argument("key"); s.add_argument("status")
+    s = sub.add_parser("move", help="change one or more issues' status", parents=[common])
+    # keys (1+) followed by the target status as the trailing positional, e.g.
+    # `move JT-1 JT-2 Done`. argparse assigns the last token to `status` and the
+    # rest to `keys` (nargs='+' is greedy but yields the final token to the
+    # following single positional). Single-key usage is unchanged.
+    s.add_argument("keys", nargs="+", metavar="KEY")
+    s.add_argument("status")
     s.add_argument("--comment"); s.add_argument("--author")
     s.set_defaults(func=cmd_move)
 
@@ -1564,8 +1778,8 @@ def build_parser():
     s.add_argument("key"); s.add_argument("body"); s.add_argument("--author")
     s.set_defaults(func=cmd_comment)
 
-    s = sub.add_parser("set", help="edit fields on an issue", parents=[common])
-    s.add_argument("key")
+    s = sub.add_parser("set", help="edit fields on one or more issues", parents=[common])
+    s.add_argument("keys", nargs="+", metavar="KEY")
     s.add_argument("--title"); s.add_argument("--desc"); s.add_argument("--priority")
     s.add_argument("--type"); s.add_argument("--parent"); s.add_argument("--assignee")
     s.add_argument("--labels"); s.add_argument("--components")
@@ -1580,6 +1794,13 @@ def build_parser():
     s.add_argument("--status"); s.add_argument("--type"); s.add_argument("--parent")
     s.add_argument("--all", action="store_true", help="include Done/Cancelled")
     s.set_defaults(func=cmd_list)
+
+    s = sub.add_parser("search", help="case-insensitive substring search across all issues", parents=[common])
+    s.add_argument("query", help="text to find in key/title/description/labels/components/comments")
+    s.set_defaults(func=cmd_search)
+
+    s = sub.add_parser("report", help="read-only metrics summary", parents=[common])
+    s.set_defaults(func=cmd_report)
 
     s = sub.add_parser("next", help="recommend what to work on", parents=[common])
     s.add_argument("--limit", type=int, default=5)

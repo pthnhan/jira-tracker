@@ -44,13 +44,15 @@ Commands:
 |---|---|
 | `init --name N --key K [--repo URL] [--force]` | Create a new board (`--force` overwrites an existing one) |
 | `add --type T --title "..." [--priority P --parent KEY --desc "..." --labels a,b --components x --status S --assignee A]` | Create an issue, prints its key; rejects blank/whitespace titles |
-| `move KEY STATUS [--comment "..."] [--author A]` | Change status (fuzzy: `prog`, `done`, `review` all work); **reopening (moving from Done/Cancelled to an open status) requires `--comment`** — closed→closed moves don't |
+| `move KEY [KEY...] STATUS [--comment "..."] [--author A]` | Change status of one or more issues (fuzzy: `prog`, `done`, `review` all work); **reopening (moving from Done/Cancelled to an open status) requires `--comment`** — closed→closed moves don't. Bulk is atomic: all keys + status validated first, nothing changes on any failure |
 | `comment KEY "text" [--author A]` | Append a comment (append-only — no edit/delete) |
-| `set KEY [--title/--desc/--priority/--type/--parent/--assignee/--labels/--components]` | Edit fields; rejects blank/whitespace titles; `--parent ""` clears the parent |
+| `set KEY [KEY...] [--title/--desc/--priority/--type/--parent/--assignee/--labels/--components]` | Edit fields on one or more issues (flags apply to all); rejects blank/whitespace titles; `--parent ""` clears the parent. Bulk is atomic: all keys + values validated first, nothing changes on any failure |
 | `list [--status S --type T --parent KEY --all]` | List issues (open only unless `--all`); `--parent KEY` validates the key |
 | `next [--limit N]` | Recommend what to work on; blocked issues go to a trailing "blocked:" section; In Review issues are called out as awaiting human review; annotates stale In-Progress issues with `⚠ stale Nd` |
 | `show KEY` | Full detail of one issue (shows blocked-by and blocks relationships) |
 | `status` | One-screen board summary; lists In Review issues as awaiting human review; annotates stale In-Progress issues with `⚠ stale Nd` |
+| `search QUERY` | Case-insensitive substring search across ALL issues (Done included) — matches key, title, description, labels, components, and comment bodies; read-only; exits 0 with a "no matches" line when nothing matches |
+| `report` | Read-only metrics summary: total, counts by status/type/priority, stale count, and cycle time (creation → first transition into a terminal status) avg/median for completed issues |
 | `set-project [--name N --repo URL]` | Edit project fields after init; `--repo ""` clears the URL; the key is not editable (issue keys derive from it) |
 | `doctor` | 12-code integrity scan — exits 0 if healthy, 1 if problems found |
 | `link KEY --blocked-by OTHER` | Mark KEY as blocked by OTHER (cycle-rejected, idempotent) |
