@@ -239,6 +239,9 @@ def cmd_init(args):
     }
     with board_lock(p):
         out = save(board, args)
+        gitignore = p.parent / ".gitignore"
+        if not gitignore.exists():
+            gitignore.write_text("board.lock\n", encoding="utf-8")
     print(f"initialized board '{board['project']['name']}' [{key}] at {p}")
     print(f"rendered board -> {out}")
 

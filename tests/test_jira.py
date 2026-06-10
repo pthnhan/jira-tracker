@@ -211,7 +211,8 @@ class TestReviewBugs(BoardTestCase):
         """JT-11: atomic writes must clean up after themselves (board.lock is expected)."""
         self.cli("add", "--type", "Task", "--title", "T")
         leftovers = [p.name for p in (self.dir / ".jira").iterdir()
-                     if p.name not in ("board.json", "board.html", "board.lock")]
+                     if p.name not in ("board.json", "board.html", "board.lock",
+                                       ".gitignore")]
         self.assertEqual(leftovers, [])
 
     def test_set_rejects_self_parent(self):
@@ -1927,6 +1928,37 @@ class TestReport(BoardTestCase):
             self.assertIn(k, m)
         for k in ("count", "avg_days", "median_days"):
             self.assertIn(k, m["cycle_time"])
+
+
+# --------------------------------------------------------------------------- #
+# JT-58: init writes <board-dir>/.gitignore so board.lock never lands in git
+# --------------------------------------------------------------------------- #
+
+class TestInitBoardDirGitignore(BoardTestCase):
+    """init must create .jira/.gitignore ignoring the transient board.lock,
+    so the lock stays out of git whether or not .jira/ itself is committed."""
+
+    def test_init_writes_gitignore_for_board_lock(self):
+        gi = self.dir / ".jira/.gitignore"
+        self.assertTrue(gi.exists(), ".jira/.gitignore not created by init")
+        self.assertIn("board.lock", gi.read_text().splitlines())
+
+    def test_init_preserves_existing_board_dir_gitignore(self):
+        gi = self.dir / ".jira/.gitignore"
+        gi.write_text("custom-entry\n")
+        r = run(["init", "--name", "Again", "--key", "AG", "--force"], self.dir)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(gi.read_text(), "custom-entry\n")
+
+    def test_init_with_file_flag_writes_gitignore_next_to_board(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = Path(d) / "elsewhere/board.json"
+            r = run(["--file", str(target), "init", "--name", "R", "--key", "REM"],
+                    Path(d))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            gi = target.parent / ".gitignore"
+            self.assertTrue(gi.exists())
+            self.assertIn("board.lock", gi.read_text().splitlines())
 
 
 if __name__ == "__main__":

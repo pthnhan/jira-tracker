@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-10T13:41:28+07:00",
-    "counter": 57
+    "updated": "2026-06-10T14:57:54+07:00",
+    "counter": 58
   },
   "types": [
     "Epic",
@@ -1641,6 +1641,49 @@
         },
         {
           "at": "2026-06-10T13:41:28+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-58",
+      "type": "Bug",
+      "title": "Code review of cbe99af (JT-56/JT-57): 10 follow-up findings",
+      "description": "Recovery recipe wipes ignored boards (init --force only path); Step 2 git question lacks plain-text fallback (Codex silently commits); headless /init deadlocks on seed-plan approval; .no-board marker has no git guidance; 'Commit it' contradicts board.lock gitignore rule (init writes no ignore entry); README:49/206 contradict SKILL.md; ignore choice not persisted; suppression rule triplicated; Workflow 5 permanent opt-out not durable. Full findings in review JSON.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T14:02:25+07:00",
+      "updated": "2026-06-10T14:57:54+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T14:52:08+07:00",
+          "body": "Fixing all 10 review findings: unified prompt-fallback/headless policy in Workflow 1, plain-text fallback for the git question, headless seed default, .no-board git guidance, init writes .jira/.gitignore for board.lock (TDD), ignore-choice detection via git check-ignore, recovery recipe branch for ignored boards, README 49/206 corrections, suppression-rule consolidation, durable Workflow 5 opt-out marker. Will sync mirrors and run tests."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T14:57:54+07:00",
+          "body": "All 10 findings fixed. SKILL.md: unified 'Prompt fallbacks' block in Workflow 1 Step 1 (plain-text fallback + headless defaults now cover the board offer, seed-plan approval, and the git question); .no-board marker gets .git/info/exclude guidance; summary-offer paragraph defers to Step 1 rules; git question merged into the seed-plan prompt (one interaction); recovery recipe split into board-in-git vs git-ignored branches (back up corrupt file, warn no git backup); board.lock section + 'Commit it' option updated for init-written .jira/.gitignore; operating principles specify git check-ignore -q .jira detection; Workflow 5 permanent opt-out now durable via .jira/.no-reconcile. jira.py: init writes .jira/.gitignore with board.lock (TDD, 3 new tests; leftover-files allowlist updated). schema.md runtime files now list .gitignore/.no-board/.no-reconcile. README 49/206 corrected. Synced mirrors + globals; 194 tests pass; doctor healthy."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T14:02:25+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T14:52:08+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T14:57:54+07:00",
           "from": "In Progress",
           "to": "Done"
         }

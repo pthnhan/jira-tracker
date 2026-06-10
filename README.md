@@ -46,9 +46,9 @@ When used, the board itself lives in the repo root under:
 
 1. **`/init`, or *any* cue that you're starting work** ("let's start on this
    repo", "read this repo", "help me work here") → if the repo isn't tracked yet
-   it **asks first** ("want me to create a board?") along with whether
-   `.jira/` should be committed or git-ignored (`.gitignore` or
-   `.git/info/exclude`), then seeds it. For an
+   it **asks first** ("want me to create a board?"); after a yes, it proposes a
+   seed plan and — in the same prompt — asks whether `.jira/` should be
+   committed or git-ignored, then seeds it. For an
    **existing codebase the already-built work is created as `Done`** so the board
    reflects the repo's real current state, with a short list of open items
    (TODOs, bugs, unfinished work). A blank repo gets a small `To Do` starter
@@ -203,8 +203,10 @@ python3 .claude/skills/jira-tracker/scripts/jira.py --file examples/sample-board
   0644 permissions) and serialized by `board.lock` so concurrent agent turns
   don't corrupt data.
 - **No dependencies.** Python 3.8+ standard library only.
-- **It travels with the repo.** `.jira/` is committed, so the board survives a
-  fresh clone and is the same for everyone.
+- **It travels with the repo (by default).** `.jira/` is committed unless a
+  git-ignore option was chosen at board creation, in which case the board is
+  machine-local instead. When committed, it survives a fresh clone and is the
+  same for everyone.
 - **`doctor` for integrity checks.** Run `python3 "$jira" doctor` after any
   manual recovery to confirm the board is consistent (12 diagnostic codes, exit 1
   on problems). Use `--json` for machine-readable output.

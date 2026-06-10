@@ -93,7 +93,16 @@ re-renders `board.html`); this doc is for reading.
 - **`board.lock`** — transient lock file created in the same directory as
   `board.json`. Used by the CLI to serialize concurrent writes via
   `fcntl.flock` (POSIX; no-op on non-POSIX). Not written to `board.json`.
-  Must be gitignored (included in the default `.gitignore` of this repo).
+  Must never be committed — `init` writes a `.gitignore` next to the board
+  covering it.
+- **`.gitignore`** — written by `init` (if absent) in the board directory,
+  containing `board.lock`. Committed with the board when `.jira/` is tracked.
+- **`.no-board`** — empty marker created by the skill (not the CLI) when the
+  user picks "No, don't ask again" at the board-creation offer; while it
+  exists the offer is never made. Kept out of git via `.git/info/exclude`.
+- **`.no-reconcile`** — empty marker created by the skill (not the CLI) when
+  the user permanently opts out of end-of-turn board reconciliation. Same git
+  handling as `.no-board`.
 
 ## `--json` output shapes
 
