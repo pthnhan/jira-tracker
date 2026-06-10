@@ -184,7 +184,7 @@ python3 "$jira" set-project --repo "github.com/me/app2"   # edit project fields 
 python3 "$jira" next        # what should I do? (blocked + in-review listed separately)
 python3 "$jira" next --json # machine-readable recommendations for scripts/agents
 python3 "$jira" status      # board summary (stale In-Progress issues annotated)
-python3 "$jira" doctor      # integrity check (12 codes, exit 1 on problems)
+python3 "$jira" doctor      # integrity check (13 codes, exit 1 on problems)
 python3 "$jira" render      # regenerate board.html
 ```
 
@@ -208,7 +208,7 @@ python3 .claude/skills/jira-tracker/scripts/jira.py --file examples/sample-board
   machine-local instead. When committed, it survives a fresh clone and is the
   same for everyone.
 - **`doctor` for integrity checks.** Run `python3 "$jira" doctor` after any
-  manual recovery to confirm the board is consistent (12 diagnostic codes, exit 1
+  manual recovery to confirm the board is consistent (13 diagnostic codes, exit 1
   on problems). Use `--json` for machine-readable output.
 - The HTML board has a Kanban (by-status) view and a By-Epic hierarchy view;
   epic/type/priority dropdowns (with live counts), text search, and a

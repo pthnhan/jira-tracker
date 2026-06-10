@@ -19,6 +19,7 @@ import html
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -125,9 +126,29 @@ def write_atomic(path: Path, text: str):
         raise
 
 
+def ensure_lock_ignored(board_dir: Path):
+    """Ensure <board-dir>/.gitignore has a board.lock line so the transient
+    lock never lands in git: create the file if absent, append the line if
+    missing (preserving existing entries), leave it untouched otherwise."""
+    gi = board_dir / ".gitignore"
+    try:
+        text = gi.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        write_atomic(gi, "board.lock\n")
+        return
+    except (OSError, UnicodeDecodeError):
+        return  # unusable .gitignore — never block a board write; doctor flags it
+    if "board.lock" in text.splitlines():
+        return
+    if text and not text.endswith("\n"):
+        text += "\n"
+    write_atomic(gi, text + "board.lock\n")
+
+
 def save(board: dict, args, render: bool = True):
     p = board_path(args)
     p.parent.mkdir(parents=True, exist_ok=True)
+    ensure_lock_ignored(p.parent)
     board["project"]["updated"] = now()
     board["template_version"] = TEMPLATE_VERSION
     write_atomic(p, json.dumps(board, indent=2, ensure_ascii=False) + "\n")
@@ -239,9 +260,6 @@ def cmd_init(args):
     }
     with board_lock(p):
         out = save(board, args)
-        gitignore = p.parent / ".gitignore"
-        if not gitignore.exists():
-            gitignore.write_text("board.lock\n", encoding="utf-8")
     print(f"initialized board '{board['project']['name']}' [{key}] at {p}")
     print(f"rendered board -> {out}")
 
@@ -886,6 +904,29 @@ def cmd_doctor(args):
                     _dt.datetime.fromisoformat(val)
                 except ValueError:
                     prob("bad_timestamp", k, f"{k}: history timestamp {val!r} is not valid ISO-8601")
+
+    # Lock file must be git-ignored. Ask git itself when possible (any ignore
+    # rule counts, e.g. a repo-root .gitignore); fall back to checking the
+    # board-dir .gitignore outside a git repo or without git available.
+    lock_dir = board_path(args).parent
+    covered = None
+    try:
+        r = subprocess.run(["git", "check-ignore", "-q", "board.lock"],
+                           cwd=str(lock_dir), capture_output=True)
+        if r.returncode in (0, 1):  # 0 = ignored, 1 = not ignored, else error
+            covered = r.returncode == 0
+    except OSError:
+        pass
+    if covered is None:
+        gi = lock_dir / ".gitignore"
+        try:
+            covered = "board.lock" in gi.read_text(encoding="utf-8").splitlines()
+        except (OSError, UnicodeDecodeError):
+            covered = False
+    if not covered:
+        prob("lock_not_ignored", None,
+             f"board.lock in {lock_dir} is not git-ignored — the transient "
+             f"lock file is committable (any board write repairs this)")
 
     if getattr(args, "json", False):
         print(json.dumps({"problems": problems}, ensure_ascii=False))

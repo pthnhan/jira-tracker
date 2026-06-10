@@ -1943,12 +1943,14 @@ class TestInitBoardDirGitignore(BoardTestCase):
         self.assertTrue(gi.exists(), ".jira/.gitignore not created by init")
         self.assertIn("board.lock", gi.read_text().splitlines())
 
-    def test_init_preserves_existing_board_dir_gitignore(self):
+    def test_init_appends_lock_line_preserving_existing_entries(self):
+        """JT-62: ensure-line semantics — custom entries survive, board.lock
+        is appended rather than the file being skipped wholesale."""
         gi = self.dir / ".jira/.gitignore"
         gi.write_text("custom-entry\n")
         r = run(["init", "--name", "Again", "--key", "AG", "--force"], self.dir)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertEqual(gi.read_text(), "custom-entry\n")
+        self.assertEqual(gi.read_text(), "custom-entry\nboard.lock\n")
 
     def test_init_with_file_flag_writes_gitignore_next_to_board(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1959,6 +1961,90 @@ class TestInitBoardDirGitignore(BoardTestCase):
             gi = target.parent / ".gitignore"
             self.assertTrue(gi.exists())
             self.assertIn("board.lock", gi.read_text().splitlines())
+
+
+# --------------------------------------------------------------------------- #
+# JT-62: every board write ensures <board-dir>/.gitignore covers board.lock
+# --------------------------------------------------------------------------- #
+
+class TestEnsureLockIgnored(BoardTestCase):
+    """Every mutating command (not just init) must ensure the board-dir
+    .gitignore has a board.lock line: created if absent, appended if missing
+    (newline-safe, idempotent), untouched if present. doctor reports
+    lock_not_ignored for boards not yet written by this version."""
+
+    def _gi(self):
+        return self.dir / ".jira/.gitignore"
+
+    def test_any_write_recreates_missing_gitignore(self):
+        self._gi().unlink()
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.assertIn("board.lock", self._gi().read_text().splitlines())
+
+    def test_write_appends_to_gitignore_missing_the_entry(self):
+        self._gi().write_text("custom-entry\n")
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.assertEqual(self._gi().read_text(), "custom-entry\nboard.lock\n")
+
+    def test_append_is_newline_safe(self):
+        self._gi().write_text("custom-entry")  # no trailing newline
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.assertEqual(self._gi().read_text().splitlines(),
+                         ["custom-entry", "board.lock"])
+
+    def test_ensure_is_idempotent(self):
+        self.cli("add", "--type", "Task", "--title", "A")
+        self.cli("add", "--type", "Task", "--title", "B")
+        lines = self._gi().read_text().splitlines()
+        self.assertEqual(lines.count("board.lock"), 1)
+
+    def test_gitignore_with_entry_is_left_untouched(self):
+        self._gi().write_text("custom-entry\nboard.lock\n")
+        before = self._gi().stat().st_mtime_ns
+        self.cli("add", "--type", "Task", "--title", "T")
+        self.assertEqual(self._gi().read_text(), "custom-entry\nboard.lock\n")
+        self.assertEqual(self._gi().stat().st_mtime_ns, before)
+
+    def test_doctor_flags_missing_gitignore(self):
+        self._gi().unlink()
+        r = run(["doctor", "--json"], self.dir)
+        self.assertEqual(r.returncode, 1)
+        codes = {p["code"] for p in json.loads(r.stdout)["problems"]}
+        self.assertIn("lock_not_ignored", codes)
+
+    def test_doctor_flags_gitignore_without_lock_line(self):
+        self._gi().write_text("something-else\n")
+        r = run(["doctor", "--json"], self.dir)
+        self.assertEqual(r.returncode, 1)
+        codes = {p["code"] for p in json.loads(r.stdout)["problems"]}
+        self.assertIn("lock_not_ignored", codes)
+
+    def test_doctor_clean_when_entry_present(self):
+        r = self.cli("doctor", "--json")
+        self.assertEqual(json.loads(r.stdout)["problems"], [])
+
+    def test_doctor_accepts_lock_ignored_by_repo_root_gitignore(self):
+        """A board.lock covered by ANY git ignore rule (e.g. the repo root
+        .gitignore) is fine — doctor must ask git, not just the board dir."""
+        if shutil.which("git") is None:
+            self.skipTest("git not available")
+        subprocess.run(["git", "init", "-q"], cwd=self.dir, check=True,
+                       capture_output=True)
+        (self.dir / ".gitignore").write_text("board.lock\n")
+        self._gi().unlink()
+        r = run(["doctor", "--json"], self.dir)
+        codes = {p["code"] for p in json.loads(r.stdout)["problems"]}
+        self.assertNotIn("lock_not_ignored", codes)
+
+    def test_write_survives_unusable_gitignore(self):
+        """A .gitignore that can't be read/written (here: a directory) must
+        not break board writes; doctor flags it instead."""
+        self._gi().unlink()
+        self._gi().mkdir()
+        self.cli("add", "--type", "Task", "--title", "T")  # must not crash
+        r = run(["doctor", "--json"], self.dir)
+        codes = {p["code"] for p in json.loads(r.stdout)["problems"]}
+        self.assertIn("lock_not_ignored", codes)
 
 
 if __name__ == "__main__":

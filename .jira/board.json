@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-10T14:57:54+07:00",
-    "counter": 58
+    "updated": "2026-06-10T16:10:11+07:00",
+    "counter": 63
   },
   "types": [
     "Epic",
@@ -1684,6 +1684,236 @@
         },
         {
           "at": "2026-06-10T14:57:54+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-59",
+      "type": "Bug",
+      "title": "Stale .jira/ exclude entry survives opt-out reversal and defeats 'Commit it'",
+      "description": "SKILL.md:109/126 — 'No, don't ask again' appends .jira/ to .git/info/exclude, but the explicit-/init override only deletes the .no-board marker. A later 'Commit it' choice is silently defeated: git add .jira is refused as ignored and git check-ignore -q .jira exits 0, so later sessions misread the board as deliberately machine-local and corruption recovery takes the destructive no-backup path. Fix: remove the exclude entry on override, and/or exclude only .jira/.no-board instead of the whole directory.",
+      "status": "Done",
+      "priority": "High",
+      "parent": null,
+      "labels": [
+        "code-review",
+        "skill-docs"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T15:28:14+07:00",
+      "updated": "2026-06-10T16:10:11+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T15:55:10+07:00",
+          "body": "Fixing the skill-doc issues from the JT-55..58 code review in one pass (same files): exclude-entry lifecycle, git-path resolution, recovery rewrite, idempotent append + doc dedup."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T16:10:11+07:00",
+          "body": "SKILL.md/schema.md: opt-out markers now exclude only their own line (.jira/.no-board, .jira/.no-reconcile), never all of .jira/; the explicit-/init override and 'update the board' override now also remove the exclude line. Mirrored to .codex."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T15:28:14+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T15:55:10+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T16:10:11+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-60",
+      "type": "Bug",
+      "title": "Exclude flows hardcode .git/info/exclude; breaks in worktrees/submodules",
+      "description": "SKILL.md:126/172/308 — in linked worktrees and submodules .git is a file, so appending to .git/info/exclude fails with 'not a directory' (verified). Use git rev-parse --git-path info/exclude instead (note: in a worktree this resolves to the main repo's shared exclude file).",
+      "status": "Done",
+      "priority": "High",
+      "parent": null,
+      "labels": [
+        "code-review",
+        "skill-docs"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T15:30:01+07:00",
+      "updated": "2026-06-10T16:10:11+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T15:55:10+07:00",
+          "body": "Fixing the skill-doc issues from the JT-55..58 code review in one pass (same files): exclude-entry lifecycle, git-path resolution, recovery rewrite, idempotent append + doc dedup."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T16:10:11+07:00",
+          "body": "Added 'Appending ignore entries safely' block in Workflow 1: resolve the exclude file with git rev-parse --git-path info/exclude (worktree/submodule-safe); all three append sites reference it. No hardcoded .git/info/exclude remains."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T15:30:01+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T15:55:10+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T16:10:11+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-61",
+      "type": "Bug",
+      "title": "Corruption-recovery doc: wrong discriminator, dropped init --force fallback, no name/key re-supply",
+      "description": "SKILL.md:367-368 — not-ignored does not imply in-git: a never-committed board hits the 'board in git' bullet where git checkout fails and no fallback exists (the old unconditional 'or run init --force' was dropped). The git-ignored bullet also says 'rebuild with init --force' without re-supplying --name/--key, so a PAY board rebuilds as JT/'Untitled Project' with counter 0. Restore a fallback and instruct recovering name/key from the corrupt copy set aside.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [
+        "code-review",
+        "skill-docs"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T15:30:02+07:00",
+      "updated": "2026-06-10T16:10:11+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T15:55:10+07:00",
+          "body": "Fixing the skill-doc issues from the JT-55..58 code review in one pass (same files): exclude-entry lifecycle, git-path resolution, recovery rewrite, idempotent append + doc dedup."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T16:10:11+07:00",
+          "body": "Recovery rewritten: try git checkout first; if git can't restore (never committed / not a git repo / ignored), set the corrupt copy aside, recover project name+key from it or board.html, then init --force --name N --key K. The wrong check-ignore discriminator is gone."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T15:30:02+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T15:55:10+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T16:10:11+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-62",
+      "type": "Bug",
+      "title": "init gitignore: exists-guard skips ensure-line; non-atomic write; no legacy-board/doctor coverage",
+      "description": "jira.py:242-244 — 'if not gitignore.exists()' never appends board.lock to a pre-existing .jira/.gitignore lacking the entry (contradicts SKILL.md:413 'holds automatically'; locked in by test_init_preserves_existing_board_dir_gitignore). Write uses plain write_text instead of write_atomic (jira.py:112). The ensure lives only in cmd_init so legacy boards (incl. this repo's own .jira/, which has a persistent board.lock and no .gitignore) never get it, and none of doctor's 12 codes detects it. Fix: ensure-line semantics via write_atomic in save(), plus a doctor diagnostic.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [
+        "code-review",
+        "cli"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T15:30:02+07:00",
+      "updated": "2026-06-10T16:10:11+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T15:57:45+07:00",
+          "body": "TDD: ensure-line gitignore via write_atomic in save(), plus doctor code lock_not_ignored. Docs already updated to match."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T16:10:11+07:00",
+          "body": "TDD (10 new/updated tests): ensure_lock_ignored() runs on every save() — creates .jira/.gitignore or appends board.lock (newline-safe, idempotent, custom entries preserved) via write_atomic; cmd_init inline write removed; new doctor code lock_not_ignored asks git check-ignore (any rule counts) with a board-dir file fallback; unusable .gitignore never blocks a write. 204 tests green; repo + example boards pass doctor."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T15:30:02+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T15:57:45+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T16:10:11+07:00",
+          "from": "In Progress",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-63",
+      "type": "Task",
+      "title": "Make git-ignore append idempotent/newline-safe; resolve headless-default vs confirm-tier contradiction; dedupe gitignore doc",
+      "description": "(1) SKILL.md:172 prose append corrupts a .gitignore lacking a trailing newline (verified: produces a merged line git matches as neither rule) and duplicates on re-run — specify an idempotent newline-safe recipe or move it into the CLI. (2) SKILL.md:156 headless default 'apply seed as-is' contradicts Tiered board writes (447-450) which makes init seeding unconditionally confirm-tier — pick one source of truth. (3) The 'init writes board-dir .gitignore' fact appears in 4 places per tree (8 with the .codex mirror) and has already drifted (only schema.md records the if-absent qualifier) — keep one canonical statement.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [
+        "code-review",
+        "skill-docs"
+      ],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T15:30:02+07:00",
+      "updated": "2026-06-10T16:10:11+07:00",
+      "comments": [
+        {
+          "author": "agent",
+          "at": "2026-06-10T15:55:10+07:00",
+          "body": "Fixing the skill-doc issues from the JT-55..58 code review in one pass (same files): exclude-entry lifecycle, git-path resolution, recovery rewrite, idempotent append + doc dedup."
+        },
+        {
+          "author": "agent",
+          "at": "2026-06-10T16:10:11+07:00",
+          "body": "Idempotent newline-safe append rules centralized (grep -qxF + trailing-newline guard); Tiered-writes confirm-first got a headless carve-out incl. non-Workflow-1 writes; gitignore behavior stated canonically in the concurrency section, other sites reference it; schema.md/README updated to 13 doctor codes. Subagent review found 4 issues (README quick-ref count, doctor false-positive on root-gitignore coverage, unhandled unusable .gitignore, missing generic headless default) — all fixed."
+        }
+      ],
+      "history": [
+        {
+          "at": "2026-06-10T15:30:02+07:00",
+          "from": "",
+          "to": "To Do"
+        },
+        {
+          "at": "2026-06-10T15:55:10+07:00",
+          "from": "To Do",
+          "to": "In Progress"
+        },
+        {
+          "at": "2026-06-10T16:10:11+07:00",
           "from": "In Progress",
           "to": "Done"
         }

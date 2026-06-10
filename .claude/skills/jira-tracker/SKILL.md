@@ -54,7 +54,7 @@ Commands:
 | `search QUERY` | Case-insensitive substring search across ALL issues (Done included) — matches key, title, description, labels, components, and comment bodies; read-only; exits 0 with a "no matches" line when nothing matches |
 | `report` | Read-only metrics summary: total, counts by status/type/priority, stale count, and cycle time (creation → first transition into a terminal status) avg/median for completed issues |
 | `set-project [--name N --repo URL]` | Edit project fields after init; `--repo ""` clears the URL; the key is not editable (issue keys derive from it) |
-| `doctor` | 12-code integrity scan — exits 0 if healthy, 1 if problems found |
+| `doctor` | 13-code integrity scan — exits 0 if healthy, 1 if problems found |
 | `link KEY --blocked-by OTHER` | Mark KEY as blocked by OTHER (cycle-rejected, idempotent) |
 | `link KEY --unblock OTHER` | Remove OTHER from KEY's blocked_by |
 | `render` | Force-regenerate `board.html` (read-only, does not modify `board.json`) |
@@ -106,7 +106,9 @@ Check for `.jira/board.json` or `.jira/board.html`.
 
 First check for the opt-out marker: if `.jira/.no-board` exists, the user has
 already declined tracking for this repo — skip the offer entirely (an explicit
-"create the board" / `/init` still wins: delete the marker and proceed).
+"create the board" / `/init` still wins: delete the marker, remove its
+`.jira/.no-board` line from the exclude file it was added to — see "Appending
+ignore entries safely" below — and proceed).
 
 If there is no board and the request was an *implicit* start-work or
 repo-analysis cue (not an explicit "create the board" / `/init`), **ask
@@ -123,9 +125,26 @@ blocks until the user picks an option.
      re-ask this session.
   3. **"No, don't ask again"** — create an empty `.jira/.no-board` marker
      file; while it exists, never make this offer again in any session. Keep
-     the marker itself out of git: append `.jira/` to `.git/info/exclude`
-     (when in a git repo), so one person's opt-out never gets committed and
-     silences the offer for every clone.
+     the marker itself out of git (when in a git repo): append the line
+     `.jira/.no-board` to the repo-local exclude file per "Appending ignore
+     entries safely" below, so one person's opt-out never gets committed and
+     silences the offer for every clone. Exclude **only the marker** — never
+     all of `.jira/`: a whole-directory exclude would linger after a later
+     explicit `/init`, block committing the board, and falsely signal a
+     machine-local board (see Operating principles).
+
+**Appending ignore entries safely — these rules apply to every
+ignore/exclude append in this skill** (the marker excludes here and in
+Workflow 5, and Step 2's git-question options):
+
+- Resolve the repo-local exclude file with `git rev-parse --git-path
+  info/exclude` — never hardcode `.git/info/exclude`: in linked worktrees and
+  submodules `.git` is a file, so the hardcoded path fails. (The resolved
+  file is shared by all worktrees of the repo.)
+- Append idempotently and newline-safely: skip if the exact line is already
+  present (`grep -qxF 'ENTRY' FILE`), and make sure the file ends with a
+  newline before appending — otherwise the new entry fuses onto the last
+  existing pattern and git matches neither.
 
 **Prompt fallbacks — these rules apply to every interactive question in this
 workflow** (this offer, Step 2's seed-plan approval, and Step 2's git
@@ -164,14 +183,16 @@ user can turn the analysis into tracked Done and To Do items.
    - Question: "Should the board (`.jira/`) be committed to git?"
    - Options:
      1. **"Commit it"** — the board travels with the repo and works the same
-        on a fresh clone. (`init` writes `.jira/.gitignore` so the transient
-        `board.lock` stays out of git either way.)
+        on a fresh clone. (The transient `board.lock` is kept out of git
+        automatically either way — see "Same-machine concurrent writes".)
      2. **"Ignore via .gitignore"** — append `.jira/` to the repo's
-        `.gitignore` (create it if needed). The ignore rule is shared with
-        everyone who clones; each machine keeps its own local board.
-     3. **"Ignore locally only"** — append `.jira/` to `.git/info/exclude`.
-        Nothing tracker-related is committed, and the ignore applies to this
-        machine only.
+        `.gitignore` (create it if needed; append per "Appending ignore
+        entries safely" above). The ignore rule is shared with everyone who
+        clones; each machine keeps its own local board.
+     3. **"Ignore locally only"** — append `.jira/` to the repo-local
+        exclude file (per "Appending ignore entries safely" above). Nothing
+        tracker-related is committed, and the ignore applies to this machine
+        only.
    If the repo is not a git repository, skip the question.
 4. Run `init`, then create the issues, then apply the chosen ignore entry (if
    any).
@@ -304,9 +325,11 @@ the requested work or thinking is done — regardless of which workflow (if
 any) the turn followed. Skip only if the user told you to leave the board
 alone. That preference is **session-scoped** by default; if they say "always"
 or "permanently", make it durable: create an empty `.jira/.no-reconcile`
-marker (same git handling as `.no-board` — keep it out of git via
-`.git/info/exclude`) and skip reconciliation in any session while it exists.
-An explicit "update the board" request wins: delete the marker and proceed.
+marker (same git handling as `.no-board`: exclude just the line
+`.jira/.no-reconcile` per Workflow 1's "Appending ignore entries safely")
+and skip reconciliation in any session while it exists. An explicit "update
+the board" request wins: delete the marker (and its exclude line) and
+proceed.
 
 Run this check silently before closing out your response:
 
@@ -364,8 +387,8 @@ acknowledge the change.
 
 ### Recovery from corruption
 
-- **Corrupt or missing `board.json`, board in git:** restore it with `git checkout HEAD -- .jira/board.json`. Do **not** hand-edit a corrupt file to fix it; the JSON structure has interdependencies.
-- **Corrupt or missing `board.json`, board git-ignored** (a Workflow 1 Step 2 ignore option — check with `git check-ignore -q .jira`): there is **no git backup**. Copy the corrupt file aside first (e.g. `board.json.corrupt`), then rebuild with `init --force`, and tell the user the issue history could not be auto-restored.
+- **Corrupt or missing `board.json`:** first try git: `git checkout HEAD -- .jira/board.json`. Do **not** hand-edit a corrupt file to fix it; the JSON structure has interdependencies.
+- **If git can't restore it** (the checkout errors — the board was never committed, the repo isn't a git repository, or a Workflow 1 Step 2 ignore option is in effect): there is **no git backup**. Copy the corrupt file aside first (e.g. `board.json.corrupt`), recover the project identity from it or from `board.html` (the `project.name` / `project.key` fields usually survive), then rebuild with `init --force --name N --key K`, and tell the user the issue history could not be auto-restored.
 - **After any recovery:** always run `doctor` to confirm the board is consistent.
 
 ### Resolving merge conflicts on `board.json`
@@ -410,9 +433,13 @@ Windows are not serialized at the file level. Board JSON is written atomically
 (unique tempfile + rename, 0644 permissions) so readers never see a
 half-written file.
 
-`board.lock` is transient and must never be committed. `init` writes
-`.jira/.gitignore` with a `board.lock` entry so this holds automatically; for
-a board created by an older version, add that entry yourself.
+`board.lock` is transient and must never be committed. Every board write
+ensures `<board-dir>/.gitignore` contains a `board.lock` line (the file is
+created, or the line appended, if missing), so this holds automatically —
+including for boards created by older versions, from their next write.
+`doctor` flags a board whose lock file is uncovered (`lock_not_ignored`).
+This paragraph is the canonical statement of that behavior; other sections
+reference it rather than restating it.
 
 ### Cross-branch divergence
 
@@ -447,7 +474,12 @@ merge-conflict recipe in Workflow 6 above.
   - **Confirm first:** `init` seeding, `add` (new issues), `set` (retitle,
     re-priority, re-parent, re-type), reopening Done/Cancelled issues, and bulk
     corrections. State the specific change(s) — keys, type, status
-    transition, comment text — and wait for the user's okay.
+    transition, comment text — and wait for the user's okay. When no human
+    can answer (headless/CI, or a subagent without interactive tools),
+    Workflow 1's prompt-fallback rule applies instead of blocking: take the
+    question's stated headless default, and for confirm-tier writes outside
+    Workflow 1 (which have no stated default) apply the proposed change —
+    either way, say so in your summary.
 - **The JSON is the source of truth; the HTML is a view.** Only ever change the
   board through the CLI. If you ever hand-edit `board.json` (only the merge
   recipe in Workflow 6 permits this), run `render` and then `doctor` afterward.

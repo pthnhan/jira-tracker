@@ -93,13 +93,18 @@ re-renders `board.html`); this doc is for reading.
 - **`board.lock`** — transient lock file created in the same directory as
   `board.json`. Used by the CLI to serialize concurrent writes via
   `fcntl.flock` (POSIX; no-op on non-POSIX). Not written to `board.json`.
-  Must never be committed — `init` writes a `.gitignore` next to the board
-  covering it.
-- **`.gitignore`** — written by `init` (if absent) in the board directory,
-  containing `board.lock`. Committed with the board when `.jira/` is tracked.
+  Must never be committed — see the `.gitignore` entry below.
+- **`.gitignore`** — ensured by **every board write** in the board directory:
+  created containing `board.lock` if absent, or the `board.lock` line
+  appended if missing (existing entries are preserved). Committed with the
+  board when `.jira/` is tracked. `doctor` reports `lock_not_ignored` when
+  the lock file is not covered by any git ignore rule.
 - **`.no-board`** — empty marker created by the skill (not the CLI) when the
   user picks "No, don't ask again" at the board-creation offer; while it
-  exists the offer is never made. Kept out of git via `.git/info/exclude`.
+  exists the offer is never made. Kept out of git by excluding the marker
+  line itself (`.jira/.no-board`) in the file resolved by
+  `git rev-parse --git-path info/exclude` — never by excluding all of
+  `.jira/`.
 - **`.no-reconcile`** — empty marker created by the skill (not the CLI) when
   the user permanently opts out of end-of-turn board reconciliation. Same git
   handling as `.no-board`.
@@ -137,6 +142,7 @@ human-readable headers or decorations). Recommended for agent programmatic use.
 | `blocked_by_cycle` | An issue is a member of a cycle in the blocked_by graph |
 | `counter_drift` | The highest issue suffix exceeds `project.counter` |
 | `bad_timestamp` | A `created`, `updated`, or comment `at` field is not valid ISO-8601 |
+| `lock_not_ignored` | `board.lock` is not git-ignored (checked via `git check-ignore`, which honors any ignore rule; outside a git repo, the board-dir `.gitignore` must contain a `board.lock` line) |
 
 ## Recommendation logic (`next`)
 
