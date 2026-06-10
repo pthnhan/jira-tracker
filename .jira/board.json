@@ -4,8 +4,8 @@
     "name": "Jira Tracker",
     "repo": "github.com/pthnhan/jira-tracker",
     "created": "2026-06-04T15:15:49+07:00",
-    "updated": "2026-06-09T21:01:44+07:00",
-    "counter": 54
+    "updated": "2026-06-10T10:53:48+07:00",
+    "counter": 55
   },
   "types": [
     "Epic",
@@ -1544,6 +1544,28 @@
         {
           "at": "2026-06-09T21:01:43+07:00",
           "from": "To Do",
+          "to": "Done"
+        }
+      ]
+    },
+    {
+      "key": "JT-55",
+      "type": "Task",
+      "title": "Skill: offer board creation via AskUserQuestion multiple-choice prompt",
+      "description": "Users often missed the plain-text 'create a Jira-style board?' offer. SKILL.md Step 1 now instructs asking via the AskUserQuestion tool (interactive multiple-choice, blocks until answered) with Yes / Not-now options, falling back to plain text in non-Claude-Code harnesses. Propagated to .codex mirror and global installs via sync.py --global.",
+      "status": "Done",
+      "priority": "Medium",
+      "parent": null,
+      "labels": [],
+      "components": [],
+      "assignee": "",
+      "created": "2026-06-10T10:53:48+07:00",
+      "updated": "2026-06-10T10:53:48+07:00",
+      "comments": [],
+      "history": [
+        {
+          "at": "2026-06-10T10:53:48+07:00",
+          "from": "",
           "to": "Done"
         }
       ]

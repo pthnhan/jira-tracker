@@ -105,17 +105,28 @@ Check for `.jira/board.json` or `.jira/board.html`.
 ### Step 1 - Ask before creating a board
 
 If there is no board and the request was an *implicit* start-work or
-repo-analysis cue (not an explicit "create the board" / `/init`), **ask first**:
+repo-analysis cue (not an explicit "create the board" / `/init`), **ask first**
+— and ask with the **`AskUserQuestion` tool** (interactive multiple-choice
+prompt), *not* as plain text in your reply. A plain-text question is easy to
+scroll past and ignore; the tool blocks until the user picks an option.
 
-> "This repo isn't tracked yet. Do you want me to create a Jira-style board for
-> it?"
+- Question: "This repo isn't tracked yet. Create a Jira-style board for it?"
+- Options:
+  1. **"Yes, create the board"** — scan the repo and propose a seed plan
+     (Step 2).
+  2. **"Not now"** — continue with the request without tracking, and don't
+     re-ask this session.
 
-Wait for a yes. If the user explicitly asked to set up tracking or ran `/init`,
-skip the question and go straight to proposing the seed plan.
+If the `AskUserQuestion` tool is not available in the current environment
+(e.g. Codex or another non-Claude-Code harness), fall back to the same
+question as plain text and wait for a yes.
+
+If the user explicitly asked to set up tracking or ran `/init`, skip the
+question and go straight to proposing the seed plan.
 
 For summary/review prompts, do not stop at a plain list of findings. After the
-summary, always include the board-creation offer above so the user can turn the
-analysis into tracked Done and To Do items.
+summary, always present the board-creation offer above (via `AskUserQuestion`)
+so the user can turn the analysis into tracked Done and To Do items.
 
 ### Step 2 - Create and seed after the user agrees
 
